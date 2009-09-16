@@ -45,4 +45,6 @@
 
 (defpackage #:graphs
   (:use #:cl #:adw-charting
-        #:movies))
+        #:movies)
+  (:export #:movies-by-decade
+           #:views-per-month))
