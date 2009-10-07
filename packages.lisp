@@ -43,6 +43,10 @@
 (defpackage #:imdb
   (:use #:cl))
 
+(defpackage #:ascii-graph
+  (:use #:cl)
+  (:export :bar-graph))
+
 (defpackage #:graphs
   (:use #:cl #:movies)
   (:export #:movies-by-decade
