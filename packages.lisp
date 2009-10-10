@@ -20,6 +20,7 @@
    #:theatre
    #:view
 
+   #:title
    #:date
    #:theatre
    #:animated-p
@@ -38,7 +39,9 @@
 
    #:lookup
    #:list-all
-   #:count-))
+   #:count-
+#:id
+#:format-date))
 
 (defpackage #:imdb
   (:use #:cl))
@@ -51,3 +54,8 @@
   (:use #:cl #:movies)
   (:export #:movies-by-decade
            #:views-per-month))
+
+(defpackage #:movies-clim
+  (:use #:movies #:clim #:clim-lisp)
+  (:shadow clim:view)
+  (:export #:gui))
