@@ -40,8 +40,9 @@
    #:lookup
    #:list-all
    #:count-
-#:id
-#:format-date))
+   #:id
+   #:format-date
+   #:month))
 
 (defpackage #:imdb
   (:use #:cl))
@@ -55,7 +56,3 @@
   (:export #:movies-by-decade
            #:views-per-month))
 
-(defpackage #:movies-clim
-  (:use #:movies #:clim #:clim-lisp)
-  (:shadow clim:view)
-  (:export #:gui))
