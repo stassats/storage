@@ -5,6 +5,7 @@
   (:export
    #:add-person
    #:add-view
+   #:add-movie
    #:where
 
    #:*movies*
@@ -17,6 +18,7 @@
    #:movie
    #:short-movie
    #:feature-movie
+   #:unwatched-movie
    #:theatre
    #:view
 
@@ -42,14 +44,15 @@
    #:count-
    #:id
    #:format-date
-   #:month))
+   #:month
+))
 
 (defpackage #:imdb
   (:use #:cl))
 
 (defpackage #:ascii-graph
   (:use #:cl)
-  (:export :bar-graph))
+  (:export #:bar-graph))
 
 (defpackage #:graphs
   (:use #:cl #:movies)
