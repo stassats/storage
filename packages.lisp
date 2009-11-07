@@ -40,12 +40,10 @@
    #:load-data
 
    #:lookup
-   #:list-all
    #:count-
    #:id
    #:format-date
-   #:month
-))
+   #:month))
 
 (defpackage #:imdb
   (:use #:cl))
