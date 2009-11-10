@@ -2,11 +2,14 @@
 
 (defpackage #:movies
   (:use #:cl)
+  (:shadow #:count #:delete #:delete-if)
   (:export
    #:add-person
    #:add-view
    #:add-movie
    #:where
+   #:delete
+   #:delete-if
 
    #:*movies*
    #:*views*
@@ -40,10 +43,12 @@
    #:load-data
 
    #:lookup
-   #:count-
+   #:count
    #:id
    #:format-date
-   #:month))
+   #:month
+   #:delete
+   #:delete-if))
 
 (defpackage #:imdb
   (:use #:cl))
@@ -54,6 +59,7 @@
 
 (defpackage #:graphs
   (:use #:cl #:movies)
+  (:shadow #:count #:delete #:delete-if)
   (:export #:movies-by-decade
            #:views-per-month))
 
