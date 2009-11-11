@@ -51,7 +51,9 @@
    #:delete-if))
 
 (defpackage #:imdb
-  (:use #:cl))
+  (:use #:cl)
+  (:shadow #:search)
+  (:export #:search))
 
 (defpackage #:ascii-graph
   (:use #:cl)
