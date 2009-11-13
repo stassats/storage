@@ -63,5 +63,6 @@
   (:use #:cl #:movies)
   (:shadow #:count #:delete #:delete-if)
   (:export #:movies-by-decade
-           #:views-per-month))
+           #:views-per-month
+           #:top-years))
 
