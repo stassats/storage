@@ -27,6 +27,10 @@
    #:duration
    #:documentary-p
    #:directors
+   #:writers
+   #:producers
+   #:cast
+   #:countries
    #:year
    #:imdb-id
    #:alternate-titles
