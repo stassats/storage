@@ -4,18 +4,13 @@
   (:use #:cl)
   (:shadow #:count #:delete #:delete-if)
   (:export
-   #:add-person
-   #:add-view
-   #:add-movie
+   #:add
    #:where
    #:delete
    #:delete-if
 
-   #:*movies*
-   #:*views*
-   #:*persons*
-   #:*theatres*
    #:*data-file*
+   #:data
 
    #:person
    #:movie
@@ -61,7 +56,7 @@
 
 (defpackage #:graphs
   (:use #:cl #:movies)
-  (:shadow #:count #:delete #:delete-if)
+  (:shadowing-import-from #:movies #:count #:delete #:delete-if)
   (:export #:movies-by-decade
            #:views-per-month
            #:top-years))
