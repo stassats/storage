@@ -14,11 +14,13 @@
 
    #:person
    #:movie
+   #:movies
    #:short-movie
    #:feature-movie
    #:unwatched-movie
    #:theatre
    #:view
+   #:views
 
    #:title
    #:date
