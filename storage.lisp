@@ -70,31 +70,28 @@
                (id value)))
         (t value)))
 
-(defun dump-object (object)
+(defun dump-object (object stream)
   (let ((class (class-of object)))
-    (list* (class-name class)
-           (loop for (slot . initform) in (slots-with-initform class)
-                 for value = (replace-ids (slot-value object slot))
-                 unless (equalp value initform)
-                 collect (find-symbol (symbol-name slot) 'keyword)
-                 and collect value))))
+    (fresh-line stream)
+    (format stream "(~a" (class-name class))
+    (loop with *print-pretty*
+          for (slot . initform) in (slots-with-initform class)
+          for value = (replace-ids (slot-value object slot))
+          unless (equalp value initform)
+          do (format stream " ~w ~w"
+                     (find-symbol (symbol-name slot) 'keyword)
+                     value))
+    (write-char #\) stream)))
 
-(defun dump-class (class objects)
-  (list* class
-         (mapcar 'dump-object objects)))
+(defun dump-class (class stream)
+  (dolist (object (data class))
+    (dump-object object stream)))
 
-(defun dump-data ()
-  (loop for (class . objects) in *dump-classes*
-        collect (dump-class class (symbol-value objects))))
+(defun dump-data (stream)
+  (loop for (class . nil) in *dump-classes*
+        do (dump-class class stream)))
 
-(defun parse-class (list)
-  (let ((class (car list))
-        (list (cdr list)))
-    (setf (data class)
-          (loop for description in list
-                for object = (apply #'make-instance description)
-                collect object
-                do (setf (index class) object)))))
+
 
 (defun find-object (class id)
   (index class id))
@@ -117,22 +114,30 @@
   (loop for (nil . objects) in list
         do (mapcar 'deidentify (symbol-value objects))))
 
+(defun parse-class (string)
+  (let* ((list (read-from-string string))
+         (type (car list)))
+    (push (apply #'make-instance list)
+          (data type))))
+
 (defun read-file (file)
   (with-standard-io-syntax
     (let ((*package* (find-package 'movies)))
       (with-open-file (stream file)
-        (read stream)))))
+        (loop for string = (read-line stream nil)
+              while string
+              do (parse-class string))))))
 
 (defun load-data (&optional (file *data-file*))
-  (mapc 'parse-class (read-file file))
+  (dolist (cons *dump-classes*) (setf (data (car cons)) nil))
+  (read-file file)
   (deidentify-all *dump-classes*))
 
 (defun save-data (&optional (file *data-file*))
   (with-standard-io-syntax
     (let ((*package* (find-package 'movies)))
       (with-open-file (stream file :direction :output :if-exists :supersede)
-        (print (dump-data) stream)
-        (terpri stream)))
+        (dump-data stream)))
     t))
 
 (eval-when (:execute :load-toplevel)
