@@ -139,21 +139,6 @@
 
 (defstruct pointer id)
 
-(defvar *dump-classes*
-  '((person . *persons*)
-    (movie . *movies*)
-    (theatre . *theatres*)
-    (view . *views*)))
-
-(defun data (type)
-  (when type
-    (symbol-value (cdr (assoc type *dump-classes* :test #'subtypep)))))
-
-(defun (setf data) (list type)
-  (when type
-    (setf (symbol-value (cdr (assoc type *dump-classes* :test #'subtypep)))
-          list)))
-
 (defvar *indexes* (make-hash-table))
 
 (defun index (id)
