@@ -183,7 +183,7 @@
     (dump-object object stream)))
 
 (defun dump-data (stream)
-  (loop for (class . nil) in *dump-classes*
+  (loop for (class . nil) in *data*
         do (dump-class class stream)))
 
 (defun find-object (id)
@@ -225,9 +225,9 @@
               do (read-instance class-name stream))))))
 
 (defun load-data (&optional (file *data-file*))
-  (dolist (cons *dump-classes*) (setf (data (car cons)) nil))
+  (dolist (cons *data*) (setf (data (car cons)) nil))
   (read-file file)
-  (deidentify-all *dump-classes*))
+  (deidentify-all *data*))
 
 (defun save-data (&optional (file *data-file*))
   (with-standard-io-syntax
