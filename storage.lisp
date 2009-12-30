@@ -104,9 +104,11 @@
          (slots (class-description-slots description)))
     (write-byte (type-code object) stream)
     (write-byte (class-description-id description) stream)
-    (loop for (slot . initform) in (slots-with-initform class)
+    (loop for slot-def in (class-slots class)
+          for slot = (slot-definition-name slot-def)
           for value = (slot-value object slot)
-          unless (eql value initform) do
+          unless (eql value (slot-definition-initform slot-def))
+          do
           (write-byte (position slot slots) stream)
           (dump-object value stream))
     (write-byte +end-of-line+ stream)))
@@ -197,25 +199,24 @@
 (defun (setf index) (object)
   (setf (gethash (id object) *indexes*) object))
 
-(defun slots (class)
-  #+ccl
-  (mapcar #'ccl:slot-definition-name
-          (ccl:class-slots class))
-  #+sbcl
-  (mapcar #'sb-mop:slot-definition-name
-          (sb-mop:class-slots class)))
+(declaim (inline class-slots))
+(defun class-slots (class)
+  #+ccl (ccl:class-slots class)
+  #+sbcl (sb-mop:class-slots class))
 
-(defun slots-with-initform (class)
-  #+ccl
-  (mapcar (lambda (slot)
-            (cons (ccl:slot-definition-name slot)
-                  (ccl:slot-definition-initform slot)))
-          (ccl:class-slots class))
-  #+sbcl
-  (mapcar (lambda (slot)
-            (cons (sb-mop:slot-definition-name slot)
-                  (sb-mop:slot-definition-initform slot)))
-          (sb-mop:class-slots class)))
+(declaim (inline slot-definition-name))
+(defun slot-definition-name (slot)
+  #+ccl (ccl:slot-definition-name slot)
+  #+sbcl (sb-mop:slot-definition-name slot))
+
+(declaim (inline slot-definition-initform))
+(defun slot-definition-initform (slot)
+  #+ccl (ccl:slot-definition-initform slot)
+  #+sbcl (sb-mop:slot-definition-initform slot))
+
+(defun slots (class)
+  (mapcar #'slot-definition-name
+          (class-slots class)))
 
 (defvar *class-cache* (make-array 20 :initial-element nil))
 (defvar *class-cache-fill-pointer* 0)
