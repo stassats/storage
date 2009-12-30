@@ -5,6 +5,8 @@
 
 (in-package #:movies)
 
+(defstruct class-description id name slots)
+
 (defvar *codes* #(keyword integer ascii-string string
                   standard-object identifiable cons symbol
                   class-description))
@@ -224,8 +226,6 @@
 (defun clear-class-cache ()
   (fill *class-cache* nil)
   (setf *class-cache-fill-pointer* 0))
-
-(defstruct class-description id name slots)
 
 (defun class-id (class-name)
   (loop for i below *class-cache-fill-pointer*
