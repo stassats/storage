@@ -6,11 +6,14 @@
 (in-package #:movies)
 
 (defvar *codes* #(keyword integer ascii-string string
-                  identifiable cons symbol))
+                  standard-object identifiable cons symbol
+                  class-description))
 
 (defvar *sequence-length* 2)
 (defvar *integer-length* 3)
 (defvar *char-length* 3)
+
+(defconstant +end-of-line+ 255)
 
 (deftype ascii-string ()
   '(satisfies ascii-string-p))
@@ -42,17 +45,21 @@
 
 ;;;
 
+(defun dump-object (object stream)
+  (unless (typep object 'standard-object)
+    (write-byte (type-code object) stream))
+  (write-object object stream)
+  object)
+
 (defgeneric write-object (object stream))
 
 (defmethod write-object ((object symbol) stream)
   (let ((name (symbol-name object)))
-    (write-byte (type-code object) stream)
     (write-byte (length name) stream)
     (write-ascii-string name stream)))
 
 (defmethod write-object ((object integer) stream)
   (assert (typep object `(unsigned-byte ,(* *integer-length* 8))))
-  (write-byte (type-code object) stream)
   (write-integer object *integer-length* stream))
 
 (defun write-ascii-string (string stream)
@@ -64,28 +71,52 @@
         do (write-integer (char-code char) *char-length* stream)))
 
 (defmethod write-object ((string string) stream)
-  (write-byte (type-code string) stream)
   (write-integer (length string) *sequence-length* stream)
   (etypecase string
     (ascii-string (write-ascii-string string stream))
     (string (write-non-ascii-string string stream))))
 
 (defmethod write-object ((list cons) stream)
-  (write-byte (type-code list) stream)
   (write-integer (length list) *sequence-length* stream)
   (dolist (item list)
-    (write-object item stream)))
+    (dump-object item stream)))
 
-(defmethod write-object ((object identifiable) stream)
-  (write-byte (type-code object) stream)
+(defun write-pointer-to-object (object stream)
+  (write-byte (position 'identifiable *codes*) stream)
   (write-integer (id object) *integer-length* stream))
+
+(defmethod write-object ((description class-description) stream)
+  (write-byte (class-description-id description) stream)
+  (write-object (class-description-name  description) stream)
+  (write-object (class-description-slots description) stream))
+
+(defvar *writing-standard-object* nil)
+
+(defmethod write-object ((object standard-object) stream)
+  (if *writing-standard-object*
+      (write-pointer-to-object object stream)
+      (let ((*writing-standard-object* t))
+        (write-standard-object object stream))))
+
+(defun write-standard-object (object stream)
+  (let* ((class (class-of object))
+         (description (ensure-class-id class stream))
+         (slots (class-description-slots description)))
+    (write-byte (type-code object) stream)
+    (write-byte (class-description-id description) stream)
+    (loop for (slot . initform) in (slots-with-initform class)
+          for value = (slot-value object slot)
+          unless (eql value initform) do
+          (write-byte (position slot slots) stream)
+          (dump-object value stream))
+    (write-byte +end-of-line+ stream)))
 
 ;;; 
 
 (defun read-next-object (stream &optional (eof-error-p t))
   (let ((code (read-byte stream eof-error-p)))
     (unless (or (not code)
-                (= code (char-code #\Newline)))
+                (= code +end-of-line+))
       (read-object (code-type code) stream))))
 
 (defgeneric read-object (type stream))
@@ -126,14 +157,33 @@
 
 (defmethod read-object ((type (eql 'cons)) stream)
   (loop repeat (read-integer *sequence-length* stream)
-        collect (read-object (code-type (read-byte stream))
-                             stream)))
+        collect (read-next-object stream)))
 
 (defmethod read-object ((type (eql 'integer)) stream)
   (read-integer *integer-length* stream))
 
 (defmethod read-object ((type (eql 'identifiable)) stream)
   (make-pointer :id (read-integer  *integer-length* stream)))
+
+(defmethod read-object ((type (eql 'standard-object)) stream)
+  (let* ((description (id-class (read-byte stream)))
+         (instance (make-instance (class-description-name description)))
+         (slots (class-description-slots description)))
+    (loop for slot-id = (read-byte stream)
+          until (= slot-id +end-of-line+)
+          do (setf (slot-value instance (elt slots slot-id))
+                   (read-next-object stream)))
+    (setf (index) instance)
+    (push instance (data (class-description-name description)))
+    instance))
+
+(defmethod read-object ((type (eql 'class-description)) stream)
+  (let ((id (read-byte stream)))
+    (setf (id-class id)
+          (make-class-description
+           :id id
+           :name (read-object 'symbol stream)
+           :slots (read-object 'cons stream)))))
 
 ;;;
 
@@ -167,22 +217,48 @@
                   (sb-mop:slot-definition-initform slot)))
           (sb-mop:class-slots class)))
 
-(defun dump-object (object stream)
-  (let ((class (class-of object)))
-    (write-object (class-name class) stream)
-    (loop with *print-pretty*
-          for (slot . initform) in (slots-with-initform class)
-          for value = (slot-value object slot)
-          unless (equalp value initform) do
-          (write-object slot stream)
-          (write-object value stream))
-    (write-byte (char-code #\Newline) stream)))
+(defvar *class-cache* (make-array 20 :initial-element nil))
+(defvar *class-cache-fill-pointer* 0)
+
+(defun clear-class-cache ()
+  (fill *class-cache* nil)
+  (setf *class-cache-fill-pointer* 0))
+
+(defstruct class-description id name slots)
+
+(defun class-id (class-name)
+  (loop for i below *class-cache-fill-pointer*
+        for class across *class-cache*
+        when (eql class-name (class-description-name class))
+        return class))
+
+(defun (setf class-id) (class)
+  (let ((description
+         (make-class-description
+          :id *class-cache-fill-pointer*
+          :name (class-name class)
+          :slots (slots class))))
+    (setf (aref *class-cache* *class-cache-fill-pointer*)
+          description)
+    (incf *class-cache-fill-pointer*)
+    description))
+
+(defun ensure-class-id (class stream)
+  (or (class-id (class-name class))
+      (dump-object (setf (class-id) class) stream)))
+
+(defun id-class (id)
+  (aref *class-cache* id))
+
+(defun (setf id-class) (description id)
+  (setf (aref *class-cache* id) description))
 
 (defun dump-class (class stream)
   (dolist (object (data class))
     (dump-object object stream)))
 
 (defun dump-data (stream)
+  (clear-class-cache)
   (loop for (class . nil) in *data*
         do (dump-class class stream)))
 
@@ -207,22 +283,11 @@
   (loop for (nil . objects) in list
         do (mapcar 'deidentify (symbol-value objects))))
 
-(defun read-instance (class-name stream)
-  (let ((instance (make-instance class-name)))
-    (loop for slot-name = (read-next-object stream)
-          while slot-name
-          do (setf (slot-value instance slot-name)
-                   (read-next-object stream)))
-    (setf (index) instance)
-    (push instance (data class-name))))
-
 (defun read-file (file)
-  (with-standard-io-syntax
-    (let ((*package* (find-package 'movies)))
-      (with-open-file (stream file :element-type 'unsigned-byte)
-        (loop for class-name = (read-next-object stream nil)
-              while class-name
-              do (read-instance class-name stream))))))
+  (clear-class-cache)
+  (let ((*package* (find-package 'movies)))
+    (with-open-file (stream file :element-type 'unsigned-byte)
+      (loop while (read-next-object stream nil)))))
 
 (defun load-data (&optional (file *data-file*))
   (dolist (cons *data*) (setf (data (car cons)) nil))
@@ -230,12 +295,10 @@
   (deidentify-all *data*))
 
 (defun save-data (&optional (file *data-file*))
-  (with-standard-io-syntax
-    (let ((*package* (find-package 'movies)))
-      (with-open-file (stream file :direction :output :if-exists :supersede
-                              :element-type 'unsigned-byte)
-        (dump-data stream)))
-    t))
+  (let ((*package* (find-package 'movies)))
+    (with-open-file (stream file :direction :output :if-exists :supersede
+                            :element-type 'unsigned-byte)
+      (dump-data stream))))
 
 (eval-when (:execute :load-toplevel)
   (load-data))
