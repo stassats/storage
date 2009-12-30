@@ -289,10 +289,11 @@
   (map nil #'deidentify *data*))
 
 (defun save-data (&optional (file *data-file*))
-  (let ((*package* (find-package 'movies)))
-    (with-open-file (stream file :direction :output :if-exists :supersede
-                            :element-type 'unsigned-byte)
-      (dump-data stream))))
+  (when *data*
+    (let ((*package* (find-package 'movies)))
+      (with-open-file (stream file :direction :output :if-exists :supersede
+                              :element-type 'unsigned-byte)
+        (dump-data stream)))))
 #+nil
 (eval-when (:execute :load-toplevel)
   (load-data))
