@@ -20,12 +20,12 @@
 (deftype ascii-string ()
   '(satisfies ascii-string-p))
 
-(defvar *ascii-limit* (code-char 255))
+(defvar +char-limit+ (code-char 255))
 
 (defun ascii-string-p (string)
   (and (stringp string)
        (every (lambda (x)
-                (char< x *ascii-limit*))
+                (char< x +char-limit+))
               string)))
 
 (defun type-code (object)
