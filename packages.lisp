@@ -10,7 +10,7 @@
    #:delete-if
 
    #:*data-file*
-   #:data
+   #:*data*
 
    #:person
    #:movie

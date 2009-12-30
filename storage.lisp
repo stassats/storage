@@ -13,7 +13,7 @@
 
 (defvar *sequence-length* 2)
 (defvar *integer-length* 3)
-(defvar *char-length* 3)
+(defvar *char-length* 2)
 
 (defconstant +end-of-line+ 255)
 
@@ -178,7 +178,7 @@
           do (setf (slot-value instance (elt slots slot-id))
                    (read-next-object stream)))
     (setf (index) instance)
-    (push instance (data (class-description-name description)))
+    (push instance *data*)
     instance))
 
 (defmethod read-object ((type (eql 'class-description)) stream)
@@ -191,7 +191,7 @@
 
 ;;;
 
-(defstruct pointer id)
+(defstruct pointer (id 0 :type fixnum))
 
 (defvar *indexes* (make-hash-table))
 
@@ -254,14 +254,10 @@
 (defun (setf id-class) (description id)
   (setf (aref *class-cache* id) description))
 
-(defun dump-class (class stream)
-  (dolist (object (data class))
-    (dump-object object stream)))
-
 (defun dump-data (stream)
   (clear-class-cache)
-  (loop for (class . nil) in *data*
-        do (dump-class class stream)))
+  (dolist (object *data*)
+    (dump-object object stream)))
 
 (defun find-object (id)
   (index id))
@@ -275,14 +271,11 @@
     (t value)))
 
 (defun deidentify (object)
-  (dolist (slot (slots (class-of object)))
-    (setf (slot-value object slot)
-          (%deidentify (slot-value object slot))))
+  (loop for slot-def in (class-slots (class-of object))
+        for slot = (slot-definition-name slot-def)
+        do (setf (slot-value object slot)
+                 (%deidentify (slot-value object slot))))
   object)
-
-(defun deidentify-all (list)
-  (loop for (nil . objects) in list
-        do (mapcar 'deidentify (symbol-value objects))))
 
 (defun read-file (file)
   (clear-class-cache)
@@ -291,15 +284,15 @@
       (loop while (read-next-object stream nil)))))
 
 (defun load-data (&optional (file *data-file*))
-  (dolist (cons *data*) (setf (data (car cons)) nil))
+  (setf *data* nil)
   (read-file file)
-  (deidentify-all *data*))
+  (map nil #'deidentify *data*))
 
 (defun save-data (&optional (file *data-file*))
   (let ((*package* (find-package 'movies)))
     (with-open-file (stream file :direction :output :if-exists :supersede
                             :element-type 'unsigned-byte)
       (dump-data stream))))
-
+#+nil
 (eval-when (:execute :load-toplevel)
   (load-data))
