@@ -171,13 +171,15 @@
 
 (defmethod read-object ((type (eql 'standard-object)) stream)
   (let* ((description (id-class (read-byte stream)))
-         (instance (make-instance (class-description-name description)))
+         (instance (make-instance (class-description-name description)
+                                  :id 0))
          (slots (class-description-slots description)))
     (loop for slot-id = (read-byte stream)
           until (= slot-id +end-of-line+)
           do (setf (slot-value instance (elt slots slot-id))
                    (read-next-object stream)))
     (setf (index) instance)
+    (setf *last-id* (max *last-id* (id instance)))
     (push instance *data*)
     instance))
 
