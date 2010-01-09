@@ -109,7 +109,8 @@
     (loop for slot-def in (class-slots class)
           for slot = (slot-definition-name slot-def)
           for value = (slot-value object slot)
-          unless (eql value (slot-definition-initform slot-def))
+          unless (or (eql slot 'movies)
+                     (eql value (slot-definition-initform slot-def)))
           do
           (write-byte (position slot slots) stream)
           (dump-object value stream))
@@ -279,6 +280,21 @@
                  (%deidentify (slot-value object slot))))
   object)
 
+(defun interlink-objects (movie)
+  (dolist (director (directors movie))
+    (push movie (getf (movies director) :director)))
+  (dolist (producer (producers movie))
+    (push movie (getf (movies producer) :producer)))
+  (dolist (writer (writers movie))
+    (push movie (getf (movies writer) :writer)))
+  (dolist (producer (producers movie))
+    (push movie
+          (getf (movies producer) :producer)))
+  (dolist (role (cast movie))
+    (push (list movie (second role))
+          (getf (movies (car role)) :actor)))
+  movie)
+
 (defun read-file (file)
   (clear-class-cache)
   (let ((*package* (find-package 'movies)))
@@ -288,7 +304,10 @@
 (defun load-data (&optional (file *data-file*))
   (setf *data* nil)
   (read-file file)
-  (map nil #'deidentify *data*))
+  (dolist (object *data*)
+    (deidentify object)
+    (typecase object
+      (movie (interlink-objects object)))))
 
 (defun save-data (&optional (file *data-file*))
   (when *data*
