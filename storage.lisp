@@ -270,7 +270,9 @@
     (pointer
      (find-object (pointer-id value)))
     (cons
-     (mapcar '%deidentify value))
+     (mapl (lambda (x)
+             (setf (car x)
+                   (%deidentify (car x)))) value))
     (t value)))
 
 (defun deidentify (object)
