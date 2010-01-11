@@ -35,10 +35,14 @@
 (defun code-type (code)
   (aref *codes* code))
 
+(declaim (inline read-integer))
 (defun read-integer (bytes stream)
-  (loop with value = 0
+  (declare (type (integer 1 4) bytes)
+           (optimize speed))
+  (loop with value of-type fixnum = 0
         for low-bit downfrom (* 8 (1- bytes)) to 0 by 8 do
-        (setf (ldb (byte 8 low-bit) value) (read-byte stream))
+        (setf (ldb (byte 8 low-bit) value)
+              (read-byte stream))
         finally (return value)))
 
 (defun write-integer (integer bytes stream)
@@ -272,7 +276,8 @@
     (cons
      (mapl (lambda (x)
              (setf (car x)
-                   (%deidentify (car x)))) value))
+                   (%deidentify (car x))))
+           value))
     (t value)))
 
 (defun deidentify (object)
