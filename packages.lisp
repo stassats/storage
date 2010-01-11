@@ -13,6 +13,8 @@
    #:*data*
 
    #:person
+   #:male
+   #:female
    #:movie
    #:movies
    #:short-movie
@@ -66,3 +68,10 @@
   (:export #:movies-by-decade
            #:views-per-month
            #:top-years))
+
+(defpackage #:freebase
+  (:use #:cl))
+
+(defpackage #:http
+  (:use #:cl)
+  (:export #:request))
