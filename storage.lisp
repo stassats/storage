@@ -11,16 +11,16 @@
                   standard-object identifiable cons symbol
                   class-description))
 
-(defvar *sequence-length* 2)
-(defvar *integer-length* 3)
-(defvar *char-length* 2)
+(defconstant +sequence-length+ 2)
+(defconstant +integer-length+ 3)
+(defconstant +char-length+ 2)
 
 (defconstant +end-of-line+ 255)
 
 (deftype ascii-string ()
   '(satisfies ascii-string-p))
 
-(defvar +char-limit+ (code-char 255))
+(defconstant +char-limit+ (code-char 255))
 
 (defun ascii-string-p (string)
   (and (stringp string)
@@ -65,8 +65,8 @@
     (write-ascii-string name stream)))
 
 (defmethod write-object ((object integer) stream)
-  (assert (typep object `(unsigned-byte ,(* *integer-length* 8))))
-  (write-integer object *integer-length* stream))
+  (assert (typep object `(unsigned-byte ,(* +integer-length+ 8))))
+  (write-integer object +integer-length+ stream))
 
 (defun write-ascii-string (string stream)
   (loop for char across string
@@ -74,22 +74,22 @@
 
 (defun write-non-ascii-string (string stream)
   (loop for char across string
-        do (write-integer (char-code char) *char-length* stream)))
+        do (write-integer (char-code char) +char-length+ stream)))
 
 (defmethod write-object ((string string) stream)
-  (write-integer (length string) *sequence-length* stream)
+  (write-integer (length string) +sequence-length+ stream)
   (etypecase string
     (ascii-string (write-ascii-string string stream))
     (string (write-non-ascii-string string stream))))
 
 (defmethod write-object ((list cons) stream)
-  (write-integer (length list) *sequence-length* stream)
+  (write-integer (length list) +sequence-length+ stream)
   (dolist (item list)
     (dump-object item stream)))
 
 (defun write-pointer-to-object (object stream)
   (write-byte (position 'identifiable *codes*) stream)
-  (write-integer (id object) *integer-length* stream))
+  (write-integer (id object) +integer-length+ stream))
 
 (defmethod write-object ((description class-description) stream)
   (write-byte (class-description-id description) stream)
@@ -151,28 +151,28 @@
     string))
 
 (defun read-non-ascii-string (stream)
-  (let* ((length (read-integer *sequence-length* stream))
+  (let* ((length (read-integer +sequence-length+ stream))
          (string (make-string length)))
     (loop for i below length
           do (setf (char string i)
-                   (code-char (read-integer *char-length* stream))))
+                   (code-char (read-integer +char-length+ stream))))
     string))
 
 (defmethod read-object ((type (eql 'ascii-string)) stream)
-  (read-ascii-string (read-integer *sequence-length* stream) stream))
+  (read-ascii-string (read-integer +sequence-length+ stream) stream))
 
 (defmethod read-object ((type (eql 'string)) stream)
   (read-non-ascii-string stream))
 
 (defmethod read-object ((type (eql 'cons)) stream)
-  (loop repeat (read-integer *sequence-length* stream)
+  (loop repeat (read-integer +sequence-length+ stream)
         collect (read-next-object stream)))
 
 (defmethod read-object ((type (eql 'integer)) stream)
-  (read-integer *integer-length* stream))
+  (read-integer +integer-length+ stream))
 
 (defmethod read-object ((type (eql 'identifiable)) stream)
-  (make-pointer :id (read-integer  *integer-length* stream)))
+  (make-pointer :id (read-integer  +integer-length+ stream)))
 
 (defmethod read-object ((type (eql 'standard-object)) stream)
   (let* ((description (id-class (read-byte stream)))
