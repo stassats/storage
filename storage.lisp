@@ -144,7 +144,7 @@
   (read-symbol nil stream))
 
 (defun read-ascii-string (length stream)
-  (let* ((string (make-string length)))
+  (let ((string (make-string length)))
     (loop for i below length
           do (setf (char string i)
                    (code-char (read-byte stream))))

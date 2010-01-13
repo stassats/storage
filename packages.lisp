@@ -38,6 +38,7 @@
    #:year
    #:imdb-id
    #:alternate-titles
+   #:name
    #:died
    #:born
    #:imdb-id
@@ -74,4 +75,5 @@
 
 (defpackage #:http
   (:use #:cl)
-  (:export #:request))
+  (:export #:request
+           #:*stream*))
