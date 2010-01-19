@@ -7,7 +7,7 @@
 
 (defstruct class-description id name slots)
 
-(defvar *codes* #(keyword integer ascii-string string
+(defvar *codes* #(keyword integer unibyte-string string
                   standard-object identifiable cons symbol
                   class-description))
 
@@ -17,12 +17,12 @@
 
 (defconstant +end-of-line+ 255)
 
-(deftype ascii-string ()
-  '(satisfies ascii-string-p))
+(deftype unibyte-string ()
+  '(satisfies unibyte-string-p))
 
 (defconstant +char-limit+ (code-char 255))
 
-(defun ascii-string-p (string)
+(defun unibyte-string-p (string)
   (and (stringp string)
        (every (lambda (x)
                 (char< x +char-limit+))
@@ -62,25 +62,25 @@
 (defmethod write-object ((object symbol) stream)
   (let ((name (symbol-name object)))
     (write-byte (length name) stream)
-    (write-ascii-string name stream)))
+    (write-unibyte-string name stream)))
 
 (defmethod write-object ((object integer) stream)
   (assert (typep object `(unsigned-byte ,(* +integer-length+ 8))))
   (write-integer object +integer-length+ stream))
 
-(defun write-ascii-string (string stream)
+(defun write-unibyte-string (string stream)
   (loop for char across string
         do (write-byte (char-code char) stream)))
 
-(defun write-non-ascii-string (string stream)
+(defun write-multibyte-string (string stream)
   (loop for char across string
         do (write-integer (char-code char) +char-length+ stream)))
 
 (defmethod write-object ((string string) stream)
   (write-integer (length string) +sequence-length+ stream)
   (etypecase string
-    (ascii-string (write-ascii-string string stream))
-    (string (write-non-ascii-string string stream))))
+    (unibyte-string (write-unibyte-string string stream))
+    (string (write-multibyte-string string stream))))
 
 (defmethod write-object ((list cons) stream)
   (write-integer (length list) +sequence-length+ stream)
@@ -131,7 +131,7 @@
 (defgeneric read-object (type stream))
 
 (defun read-symbol (keyword-p stream)
-  (intern (read-ascii-string (read-byte stream)
+  (intern (read-unibyte-string (read-byte stream)
                              stream)
           (if keyword-p
               :keyword
@@ -143,14 +143,14 @@
 (defmethod read-object ((type (eql 'symbol)) stream)
   (read-symbol nil stream))
 
-(defun read-ascii-string (length stream)
+(defun read-unibyte-string (length stream)
   (let ((string (make-string length)))
     (loop for i below length
           do (setf (char string i)
                    (code-char (read-byte stream))))
     string))
 
-(defun read-non-ascii-string (stream)
+(defun read-multibyte-string (stream)
   (let* ((length (read-integer +sequence-length+ stream))
          (string (make-string length)))
     (loop for i below length
@@ -158,11 +158,11 @@
                    (code-char (read-integer +char-length+ stream))))
     string))
 
-(defmethod read-object ((type (eql 'ascii-string)) stream)
-  (read-ascii-string (read-integer +sequence-length+ stream) stream))
+(defmethod read-object ((type (eql 'unibyte-string)) stream)
+  (read-unibyte-string (read-integer +sequence-length+ stream) stream))
 
 (defmethod read-object ((type (eql 'string)) stream)
-  (read-non-ascii-string stream))
+  (read-multibyte-string stream))
 
 (defmethod read-object ((type (eql 'cons)) stream)
   (loop repeat (read-integer +sequence-length+ stream)
