@@ -322,6 +322,6 @@
       (with-open-file (stream file :direction :output :if-exists :supersede
                               :element-type 'unsigned-byte)
         (dump-data stream)))))
-#+nil
+
 (eval-when (:execute :load-toplevel)
   (load-data))
