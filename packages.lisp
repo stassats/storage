@@ -57,7 +57,8 @@
 (defpackage #:imdb
   (:use #:cl)
   (:shadow #:search)
-  (:export #:search))
+  (:export #:search
+           #:parse-page))
 
 (defpackage #:ascii-graph
   (:use #:cl)
