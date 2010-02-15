@@ -52,7 +52,8 @@
    #:format-date
    #:month
    #:delete
-   #:delete-if))
+   #:delete-if
+   #:sort-hash-table-to-alist))
 
 (defpackage #:imdb
   (:use #:cl)

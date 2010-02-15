@@ -323,5 +323,4 @@
                               :element-type 'unsigned-byte)
         (dump-data stream)))))
 
-(eval-when (:execute :load-toplevel)
-  (load-data))
+(load-data)
