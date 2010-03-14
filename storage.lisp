@@ -294,9 +294,6 @@
     (push movie (getf (movies producer) :producer)))
   (dolist (writer (writers movie))
     (push movie (getf (movies writer) :writer)))
-  (dolist (producer (producers movie))
-    (push movie
-          (getf (movies producer) :producer)))
   (dolist (role (cast movie))
     (push (list movie (second role))
           (getf (movies (car role)) :actor)))
