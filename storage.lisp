@@ -5,6 +5,22 @@
 
 (in-package #:movies)
 
+(defvar *data-file* (merge-pathnames "doc/movies.db" (user-homedir-pathname)))
+(defvar *data* ())
+
+(defvar *last-id* -1)
+
+(defclass identifiable ()
+  ((id :accessor id
+       :initarg :id
+       :initform nil)))
+
+(defmethod initialize-instance :after ((object identifiable)
+                                       &key id)
+  (if (integerp id)
+      (setf *last-id* (max *last-id* id))
+      (setf (id object) (incf *last-id*))))
+
 (defstruct class-description id name slots)
 
 (defvar *codes* #(keyword integer unibyte-string string
@@ -120,7 +136,7 @@
           (dump-object value stream))
     (write-byte +end-of-line+ stream)))
 
-;;; 
+;;;
 
 (defun read-next-object (stream &optional (eof-error-p t))
   (let ((code (read-byte stream eof-error-p)))
@@ -228,14 +244,14 @@
           (class-slots class)))
 
 (defvar *class-cache* (make-array 20 :initial-element nil))
-(defvar *class-cache-fill-pointer* 0)
+(defvar *class-cache-size* 0)
 
 (defun clear-class-cache ()
   (fill *class-cache* nil)
-  (setf *class-cache-fill-pointer* 0))
+  (setf *class-cache-size* 0))
 
 (defun class-id (class-name)
-  (loop for i below *class-cache-fill-pointer*
+  (loop for i below *class-cache-size*
         for class across *class-cache*
         when (eql class-name (class-description-name class))
         return class))
@@ -243,12 +259,12 @@
 (defun (setf class-id) (class)
   (let ((description
          (make-class-description
-          :id *class-cache-fill-pointer*
+          :id *class-cache-size*
           :name (class-name class)
           :slots (slots class))))
-    (setf (aref *class-cache* *class-cache-fill-pointer*)
+    (setf (aref *class-cache* *class-cache-size*)
           description)
-    (incf *class-cache-fill-pointer*)
+    (incf *class-cache-size*)
     description))
 
 (defun ensure-class-id (class stream)
@@ -287,17 +303,10 @@
                  (%deidentify (slot-value object slot))))
   object)
 
-(defun interlink-objects (movie)
-  (dolist (director (directors movie))
-    (push movie (getf (movies director) :director)))
-  (dolist (producer (producers movie))
-    (push movie (getf (movies producer) :producer)))
-  (dolist (writer (writers movie))
-    (push movie (getf (movies writer) :writer)))
-  (dolist (role (cast movie))
-    (push (list movie (second role))
-          (getf (movies (car role)) :actor)))
-  movie)
+(defgeneric interlink-objects (object))
+
+(defmethod interlink-objects (object)
+  nil)
 
 (defun read-file (file)
   (clear-class-cache)
@@ -310,8 +319,7 @@
   (read-file file)
   (dolist (object *data*)
     (deidentify object)
-    (typecase object
-      (movie (interlink-objects object)))))
+    (interlink-objects object)))
 
 (defun save-data (&optional (file *data-file*))
   (when *data*
@@ -320,4 +328,54 @@
                               :element-type 'unsigned-byte)
         (dump-data stream)))))
 
-(load-data)
+;;; Data manipulations
+
+(defgeneric add (type &rest args &key &allow-other-keys))
+
+(defmethod add (type &rest args &key &allow-other-keys)
+  (let ((object (apply #'make-instance type args)))
+    (push object *data*)
+    object))
+
+(defun delete (object)
+  (setf *data* (remove object *data*))
+  (when (typep object 'identifiable)
+    (setf (id object) -1))
+  t)
+
+(defun delete-if (type test)
+  (setf *data* (remove-if (type-and-test type test) *data*))
+  t)
+
+(defun where (&rest clauses)
+  (let ((slots (loop for slot in clauses by #'cddr
+                     collect (intern (symbol-name slot)
+                                     'movies)))
+        (values (loop for value in (cdr clauses) by #'cddr collect value)))
+    (compile
+     nil
+     `(lambda (object)
+        (with-slots ,slots object
+          (and
+           ,@(mapcar (lambda (slot value)
+                       (typecase value
+                         (function
+                          `(funcall ,value ,slot))
+                         (string
+                          `(search ,value ,slot :test #'char-equal))
+                         (t
+                          `(equalp ,value ,slot))))
+                     slots values)))))))
+
+(defun type-and-test (type test)
+  (lambda (object) (and (typep object type)
+                        (funcall test object))))
+
+(defun lookup (type &optional (test #'identity))
+  (let ((result (remove-if-not (type-and-test type test) *data*)))
+    (if (= (length result) 1)
+        (car result)
+        result)))
+
+(defun count (type &optional (test #'identity))
+  (count-if (type-and-test type test) *data*))
