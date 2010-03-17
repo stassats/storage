@@ -70,7 +70,9 @@
   (:shadowing-import-from #:movies #:count #:delete #:delete-if)
   (:export #:movies-by-decade
            #:views-per-month
-           #:top-years))
+           #:top-years
+           #:top-persons
+           #:top-countries))
 
 (defpackage #:freebase
   (:use #:cl))
