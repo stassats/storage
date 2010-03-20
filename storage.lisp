@@ -323,10 +323,9 @@
 
 (defun save-data (&optional (file *data-file*))
   (when *data*
-    (let ((*package* (find-package 'movies)))
-      (with-open-file (stream file :direction :output :if-exists :supersede
-                              :element-type 'unsigned-byte)
-        (dump-data stream)))))
+    (with-open-file (stream file :direction :output :if-exists :supersede
+                            :element-type 'unsigned-byte)
+      (dump-data stream))))
 
 ;;; Data manipulations
 
