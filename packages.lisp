@@ -55,6 +55,12 @@
    #:delete-if
    #:sort-hash-table-to-alist))
 
+(defpackage #:iso-3166-1
+  (:use #:cl)
+  (:export
+   #:code-country
+   #:country-code))
+
 (defpackage #:imdb
   (:use #:cl)
   (:shadow #:search)
