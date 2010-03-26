@@ -53,7 +53,9 @@
    #:month
    #:delete
    #:delete-if
-   #:sort-hash-table-to-alist))
+   #:sort-hash-table-to-alist
+   #:identifiable
+   #:imdb-url))
 
 (defpackage #:iso-3166-1
   (:use #:cl)
