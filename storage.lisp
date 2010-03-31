@@ -56,13 +56,13 @@
   (declare (type (integer 1 4) bytes)
            (optimize speed))
   (loop with value of-type fixnum = 0
-        for low-bit downfrom (* 8 (1- bytes)) to 0 by 8 do
-        (setf (ldb (byte 8 low-bit) value)
-              (read-byte stream))
+        for low-bit to (* 8 (1- bytes)) by 8
+        do (setf (ldb (byte 8 low-bit) value)
+                 (read-byte stream))
         finally (return value)))
 
 (defun write-integer (integer bytes stream)
-  (loop for low-bit downfrom (* 8 (1- bytes)) to 0 by 8
+  (loop for low-bit to (* 8 (1- bytes)) by 8
         do (write-byte (ldb (byte 8 low-bit) integer) stream)))
 
 ;;;
