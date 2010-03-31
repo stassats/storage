@@ -89,3 +89,8 @@
   (:use #:cl)
   (:export #:request
            #:*stream*))
+
+(defpackage #:io
+  (:use #:cl)
+  (:export #:with-io-file
+           #:read-n-bytes))
