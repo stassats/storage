@@ -62,16 +62,6 @@
 (defun code-type (code)
   (aref *codes* code))
 
-(declaim (inline read-integer))
-(defun read-integer (bytes stream)
-  (declare (type (integer 1 4) bytes)
-           (optimize speed))
-  (loop with value of-type fixnum = 0
-        for low-bit to (* 8 (1- bytes)) by 8
-        do (setf (ldb (byte 8 low-bit) value)
-                 (read-byte stream))
-        finally (return value)))
-
 (defun write-integer (integer bytes stream)
   (loop for low-bit to (* 8 (1- bytes)) by 8
         do (write-byte (ldb (byte 8 low-bit) integer) stream)))
@@ -95,10 +85,6 @@
   (assert (typep object `(unsigned-byte ,(* +integer-length+ 8))))
   (write-integer object +integer-length+ stream))
 
-
-(defun write-ascii-string (string stream)
-  (loop for char across string
-        do (write-byte (char-code char) stream)))
 
 (defun write-ascii-string (string stream)
   (loop for char across string
@@ -155,7 +141,7 @@
 ;;;
 
 (defun read-next-object (stream &optional (eof-error-p t))
-  (let ((code (read-byte stream eof-error-p)))
+  (let ((code (read-n-bytes 1 stream eof-error-p)))
     (unless (or (not code)
                 (= code +end-of-line+))
       (read-object (code-type code) stream))))
@@ -163,7 +149,7 @@
 (defgeneric read-object (type stream))
 
 (defun read-symbol (keyword-p stream)
-  (intern (read-ascii-string (read-byte stream) stream)
+  (intern (read-ascii-string (read-n-bytes 1 stream) stream)
           (if keyword-p
               :keyword
               *package*)))
@@ -178,36 +164,36 @@
   (let ((string (make-string length :element-type 'base-char)))
     (loop for i below length
           do (setf (char string i)
-                   (code-char (read-byte stream))))
+                   (code-char (read-n-bytes 1 stream))))
     string))
 
 (defmethod read-object ((type (eql 'ascii-string)) stream)
-  (read-ascii-string (read-integer +sequence-length+ stream) stream))
+  (read-ascii-string (read-n-bytes +sequence-length+ stream) stream))
 
 (defmethod read-object ((type (eql 'string)) stream)
-  (let* ((length (read-integer +sequence-length+ stream))
+  (let* ((length (read-n-bytes +sequence-length+ stream))
          (string (make-string length)))
     (loop for i below length
           do (setf (char string i)
-                   (code-char (read-integer +char-length+ stream))))
+                   (code-char (read-n-bytes +char-length+ stream))))
     string))
 
 (defmethod read-object ((type (eql 'cons)) stream)
-  (loop repeat (read-integer +sequence-length+ stream)
+  (loop repeat (read-n-bytes +sequence-length+ stream)
         collect (read-next-object stream)))
 
 (defmethod read-object ((type (eql 'integer)) stream)
-  (read-integer +integer-length+ stream))
+  (read-n-bytes +integer-length+ stream))
 
 (defmethod read-object ((type (eql 'identifiable)) stream)
-  (make-pointer :id (read-integer  +integer-length+ stream)))
+  (make-pointer :id (read-n-bytes  +integer-length+ stream)))
 
 (defmethod read-object ((type (eql 'standard-object)) stream)
-  (let* ((description (id-class (read-byte stream)))
+  (let* ((description (id-class (read-n-bytes 1 stream)))
          (instance (make-instance (class-description-name description)
                                   :id 0))
          (slots (class-description-slots description)))
-    (loop for slot-id = (read-byte stream)
+    (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end-of-line+)
           do (setf (slot-value instance (elt slots slot-id))
                    (read-next-object stream)))
@@ -217,7 +203,7 @@
     instance))
 
 (defmethod read-object ((type (eql 'class-description)) stream)
-  (let ((id (read-byte stream)))
+  (let ((id (read-n-bytes 1 stream)))
     (setf (id-class id)
           (make-class-description
            :id id
@@ -323,7 +309,7 @@
 (defun read-file (file)
   (clear-class-cache)
   (let ((*package* (find-package 'movies)))
-    (with-open-file (stream file :element-type 'unsigned-byte)
+    (with-io-file (stream file)
       (loop while (read-next-object stream nil)))))
 
 (defun load-data (&optional (file *data-file*))
