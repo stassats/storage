@@ -23,7 +23,8 @@
 
 (defstruct class-description id name slots)
 
-(defvar *codes* #(keyword integer unibyte-string string
+(defvar *codes* #(keyword integer
+                  ascii-string string
                   standard-object identifiable cons symbol
                   class-description))
 
@@ -33,20 +34,30 @@
 
 (defconstant +end-of-line+ 255)
 
-(deftype unibyte-string ()
-  '(satisfies unibyte-string-p))
+(defconstant +ascii-char-limit+ (code-char 128))
 
-(defconstant +char-limit+ (code-char 255))
+(deftype ascii-string ()
+  '(or #+sb-unicode simple-base-string  ; on #-sb-unicode the limit is 255
+    (satisfies ascii-string-p)))
 
-(defun unibyte-string-p (string)
+(defun ascii-string-p (string)
   (and (stringp string)
        (every (lambda (x)
-                (char< x +char-limit+))
+                (char< x +ascii-char-limit+))
               string)))
 
 (defun type-code (object)
   (position-if (lambda (x) (typep object x))
                *codes*))
+
+;; (defvar *statistics* ())
+;; (defun code-type (code)
+;;   (let* ((type (aref *codes* code))
+;;          (cons (assoc type *statistics*)))
+;;     (if cons
+;;         (incf (cdr cons))
+;;         (push (cons type 1) *statistics*))
+;;     type))
 
 (defun code-type (code)
   (aref *codes* code))
@@ -78,13 +89,18 @@
 (defmethod write-object ((object symbol) stream)
   (let ((name (symbol-name object)))
     (write-byte (length name) stream)
-    (write-unibyte-string name stream)))
+    (write-ascii-string name stream)))
 
 (defmethod write-object ((object integer) stream)
   (assert (typep object `(unsigned-byte ,(* +integer-length+ 8))))
   (write-integer object +integer-length+ stream))
 
-(defun write-unibyte-string (string stream)
+
+(defun write-ascii-string (string stream)
+  (loop for char across string
+        do (write-byte (char-code char) stream)))
+
+(defun write-ascii-string (string stream)
   (loop for char across string
         do (write-byte (char-code char) stream)))
 
@@ -95,7 +111,7 @@
 (defmethod write-object ((string string) stream)
   (write-integer (length string) +sequence-length+ stream)
   (etypecase string
-    (unibyte-string (write-unibyte-string string stream))
+    (ascii-string (write-ascii-string string stream))
     (string (write-multibyte-string string stream))))
 
 (defmethod write-object ((list cons) stream)
@@ -147,8 +163,7 @@
 (defgeneric read-object (type stream))
 
 (defun read-symbol (keyword-p stream)
-  (intern (read-unibyte-string (read-byte stream)
-                             stream)
+  (intern (read-ascii-string (read-byte stream) stream)
           (if keyword-p
               :keyword
               *package*)))
@@ -159,26 +174,23 @@
 (defmethod read-object ((type (eql 'symbol)) stream)
   (read-symbol nil stream))
 
-(defun read-unibyte-string (length stream)
-  (let ((string (make-string length)))
+(defun read-ascii-string (length stream)
+  (let ((string (make-string length :element-type 'base-char)))
     (loop for i below length
           do (setf (char string i)
                    (code-char (read-byte stream))))
     string))
 
-(defun read-multibyte-string (stream)
+(defmethod read-object ((type (eql 'ascii-string)) stream)
+  (read-ascii-string (read-integer +sequence-length+ stream) stream))
+
+(defmethod read-object ((type (eql 'string)) stream)
   (let* ((length (read-integer +sequence-length+ stream))
          (string (make-string length)))
     (loop for i below length
           do (setf (char string i)
                    (code-char (read-integer +char-length+ stream))))
     string))
-
-(defmethod read-object ((type (eql 'unibyte-string)) stream)
-  (read-unibyte-string (read-integer +sequence-length+ stream) stream))
-
-(defmethod read-object ((type (eql 'string)) stream)
-  (read-multibyte-string stream))
 
 (defmethod read-object ((type (eql 'cons)) stream)
   (loop repeat (read-integer +sequence-length+ stream)
