@@ -280,6 +280,7 @@
   (let* ((id (read-n-bytes 1 stream))
          (name (read-object 'symbol stream))
          (class (find-class name)))
+    (sb-mop:finalize-inheritance class)
     (setf (id-class id)
           (make-class-description
            :id id
