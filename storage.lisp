@@ -114,7 +114,7 @@
   (write-integer (id object) +integer-length+ stream))
 
 (defun write-standard-object (object stream)
-  (write-byte (type-code object) stream)
+  (write-byte (position 'standard-object *codes*) stream)
   (let* ((class (class-of object))
          (description (ensure-class-id class stream)))
     (loop for slot-def across (class-description-slots description)
