@@ -65,6 +65,61 @@
 (defun write-integer (integer bytes stream)
   (loop for low-bit to (* 8 (1- bytes)) by 8
         do (write-byte (ldb (byte 8 low-bit) integer) stream)))
+;;;
+
+(defstruct pointer (id 0 :type fixnum))
+
+(defvar *indexes* (make-hash-table))
+
+(defun index (id)
+  (gethash id *indexes*))
+
+(defun (setf index) (object)
+  (setf (gethash (id object) *indexes*) object))
+
+(defun slots (class)
+  (coerce (class-slots class) 'vector))
+
+(defun slot-effective-definition (class slot-name)
+  (find slot-name (class-slots class) :key #'slot-definition-name))
+
+(defvar *class-cache* (make-array 20 :initial-element nil))
+(defvar *class-cache-size* 0)
+
+(defun clear-class-cache ()
+  (fill *class-cache* nil)
+  (setf *class-cache-size* 0))
+
+(defun class-id (class)
+  (position class *class-cache* :key
+            #'class-description-class
+            :end *class-cache-size*))
+
+(defun (setf class-id) (class)
+  (let ((description
+         (make-class-description
+          :class class
+          :slots (slots class))))
+    (setf (aref *class-cache* *class-cache-size*)
+          description)
+    (prog1 *class-cache-size*
+      (incf *class-cache-size*))))
+
+(defun ensure-class-id (class stream)
+  (let ((id (class-id class)))
+    (cond (id (write-byte id stream)
+              (aref *class-cache* id))
+          (t (setf id (setf (class-id) class))
+             (write-byte id stream)
+             (let ((description (aref *class-cache* id)))
+               (write-object description stream)
+               description)))))
+
+(defun id-class (id)
+  (aref *class-cache* id))
+
+(defun (setf id-class) (description id)
+  (setf (aref *class-cache* id) description))
 
 ;;;
 
@@ -220,59 +275,6 @@
 
 ;;;
 
-(defstruct pointer (id 0 :type fixnum))
-
-(defvar *indexes* (make-hash-table))
-
-(defun index (id)
-  (gethash id *indexes*))
-
-(defun (setf index) (object)
-  (setf (gethash (id object) *indexes*) object))
-
-(defun slots (class)
-  (coerce (class-slots class) 'vector))
-
-(defun slot-effective-definition (class slot-name)
-  (find slot-name (class-slots class) :key #'slot-definition-name))
-
-(defvar *class-cache* (make-array 20 :initial-element nil))
-(defvar *class-cache-size* 0)
-
-(defun clear-class-cache ()
-  (fill *class-cache* nil)
-  (setf *class-cache-size* 0))
-
-(defun class-id (class)
-  (position class *class-cache* :key
-            #'class-description-class
-            :end *class-cache-size*))
-
-(defun (setf class-id) (class)
-  (let ((description
-         (make-class-description
-          :class class
-          :slots (slots class))))
-    (setf (aref *class-cache* *class-cache-size*)
-          description)
-    (prog1 *class-cache-size*
-      (incf *class-cache-size*))))
-
-(defun ensure-class-id (class stream)
-  (let ((id (class-id class)))
-    (cond (id (write-byte id stream)
-              (aref *class-cache* id))
-          (t (setf id (setf (class-id) class))
-             (write-byte id stream)
-             (let ((description (aref *class-cache* id)))
-               (write-object description stream)
-               description)))))
-
-(defun id-class (id)
-  (aref *class-cache* id))
-
-(defun (setf id-class) (description id)
-  (setf (aref *class-cache* id) description))
 
 (defun dump-data (stream)
   (clear-class-cache)
@@ -302,7 +304,7 @@
 
 (defgeneric interlink-objects (object))
 
-(defmethod interlink-objects (object)
+(defmethod interlink-objects ((object t))
   nil)
 
 (defun read-file (file)
