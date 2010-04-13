@@ -1,7 +1,7 @@
 ;;; -*- Mode: Lisp -*-
 
 (defpackage #:movies
-  (:use #:cl)
+  (:use #:closer-common-lisp)
   (:shadow #:count #:delete #:delete-if)
   (:export
    #:add

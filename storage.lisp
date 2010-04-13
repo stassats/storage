@@ -13,16 +13,12 @@
 (defclass storable-class (standard-class)
   ())
 
-(defmethod
-    #+sbcl sb-mop:validate-superclass
-    #+ccl  ccl:validate-superclass
+(defmethod validate-superclass
     ((class standard-class)
      (superclass storable-class))
   t)
 
-(defmethod
-    #+sbcl sb-mop:validate-superclass
-    #+ccl  ccl:validate-superclass
+(defmethod validate-superclass
     ((class storable-class)
      (superclass standard-class))
     t)
@@ -33,24 +29,24 @@
                :reader store-type)))
 
 (defclass storable-direct-slot-definition
-    (storable-slot-mixin sb-mop:standard-direct-slot-definition)
+    (storable-slot-mixin standard-direct-slot-definition)
   ())
 
 (defclass storable-effective-slot-definition
-    (storable-slot-mixin sb-mop:standard-effective-slot-definition)
+    (storable-slot-mixin standard-effective-slot-definition)
   ())
 
-(defmethod sb-mop:direct-slot-definition-class ((class storable-class)
-                                                &rest initargs)
+(defmethod direct-slot-definition-class ((class storable-class)
+                                         &rest initargs)
   (declare (ignore initargs))
   (find-class 'storable-direct-slot-definition))
 
-(defmethod sb-mop:effective-slot-definition-class ((class storable-class)
-                                                &rest initargs)
+(defmethod effective-slot-definition-class ((class storable-class)
+                                            &rest initargs)
   (declare (ignore initargs))
   (find-class 'storable-effective-slot-definition))
 
-(defmethod sb-mop:compute-effective-slot-definition
+(defmethod compute-effective-slot-definition
     ((class storable-class)
      slot-name
      direct-definitions)
@@ -191,7 +187,7 @@
     (write-byte (class-description-id description) stream)
     (loop for slot-def across slots
           for i from 0
-          for value = (sb-mop:slot-value-using-class class object slot-def)
+          for value = (slot-value-using-class class object slot-def)
           unless (or (null (store-type slot-def))
                      (eql value (slot-definition-initform slot-def)))
           do
@@ -266,8 +262,7 @@
     (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end-of-line+)
           for slot-def = (aref slots slot-id)
-          do (setf (sb-mop:slot-value-using-class
-                    class instance slot-def)
+          do (setf (slot-value-using-class class instance slot-def)
                    (if (eql (store-type slot-def) t)
                        (read-next-object stream)
                        (read-object (store-type slot-def) stream))))
@@ -280,7 +275,7 @@
   (let* ((id (read-n-bytes 1 stream))
          (name (read-object 'symbol stream))
          (class (find-class name)))
-    (sb-mop:finalize-inheritance class)
+    (finalize-inheritance class)
     (setf (id-class id)
           (make-class-description
            :id id
@@ -301,21 +296,6 @@
 
 (defun (setf index) (object)
   (setf (gethash (id object) *indexes*) object))
-
-(declaim (inline class-slots))
-(defun class-slots (class)
-  #+ccl (ccl:class-slots class)
-  #+sbcl (sb-mop:class-slots class))
-
-(declaim (inline slot-definition-name))
-(defun slot-definition-name (slot)
-  #+ccl (ccl:slot-definition-name slot)
-  #+sbcl (sb-mop:slot-definition-name slot))
-
-(declaim (inline slot-definition-initform))
-(defun slot-definition-initform (slot)
-  #+ccl (ccl:slot-definition-initform slot)
-  #+sbcl (sb-mop:slot-definition-initform slot))
 
 (defun slots (class)
   (coerce (class-slots class) 'vector))
