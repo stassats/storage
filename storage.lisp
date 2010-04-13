@@ -104,15 +104,6 @@
   (find-if (lambda (x) (typep object x))
            *codes*))
 
-;; (defvar *statistics* ())
-;; (defun code-type (code)
-;;   (let* ((type (aref *codes* code))
-;;          (cons (assoc type *statistics*)))
-;;     (if cons
-;;         (incf (cdr cons))
-;;         (push (cons type 1) *statistics*))
-;;     type))
-
 (defun code-type (code)
   (aref *codes* code))
 
