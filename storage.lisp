@@ -10,10 +10,63 @@
 
 (defvar *last-id* -1)
 
+(defclass storable-class (standard-class)
+  ())
+
+(defmethod
+    #+sbcl sb-mop:validate-superclass
+    #+ccl  ccl:validate-superclass
+    ((class standard-class)
+     (superclass storable-class))
+  t)
+
+(defmethod
+    #+sbcl sb-mop:validate-superclass
+    #+ccl  ccl:validate-superclass
+    ((class storable-class)
+     (superclass standard-class))
+    t)
+
+(defclass storable-slot-mixin ()
+  ((store-type :initarg :store-type
+               :initform t
+               :reader store-type)))
+
+(defclass storable-direct-slot-definition
+    (storable-slot-mixin sb-mop:standard-direct-slot-definition)
+  ())
+
+(defclass storable-effective-slot-definition
+    (storable-slot-mixin sb-mop:standard-effective-slot-definition)
+  ())
+
+(defmethod sb-mop:direct-slot-definition-class ((class storable-class)
+                                                &rest initargs)
+  (declare (ignore initargs))
+  (find-class 'storable-direct-slot-definition))
+
+(defmethod sb-mop:effective-slot-definition-class ((class storable-class)
+                                                &rest initargs)
+  (declare (ignore initargs))
+  (find-class 'storable-effective-slot-definition))
+
+(defmethod sb-mop:compute-effective-slot-definition
+    ((class storable-class)
+     slot-name
+     direct-definitions)
+  (let ((effective-definition (call-next-method)))
+    (setf (slot-value effective-definition 'store-type)
+          (store-type (car direct-definitions)))
+    effective-definition))
+
+;;
+
 (defclass identifiable ()
   ((id :accessor id
        :initarg :id
-       :initform nil)))
+       :initform nil
+       :store-type integer))
+  (:metaclass storable-class))
 
 (defmethod initialize-instance :after ((object identifiable)
                                        &key id)
@@ -25,7 +78,8 @@
 
 (defvar *codes* #(keyword integer
                   ascii-string string
-                  standard-object identifiable cons symbol
+                  standard-object identifiable
+                  cons symbol
                   class-description))
 
 (defconstant +sequence-length+ 2)
@@ -50,6 +104,10 @@
   (position-if (lambda (x) (typep object x))
                *codes*))
 
+(defun object-type (object)
+  (find-if (lambda (x) (typep object x))
+           *codes*))
+
 ;; (defvar *statistics* ())
 ;; (defun code-type (code)
 ;;   (let* ((type (aref *codes* code))
@@ -68,9 +126,13 @@
 
 ;;;
 
+(defvar *writing-standard-object* nil)
+
 (defun dump-object (object stream)
-  (unless (typep object 'standard-object)
-    (write-byte (type-code object) stream))
+  (cond ((not (typep object 'standard-object))
+         (write-byte (type-code object) stream))
+        (*writing-standard-object*
+         (write-byte (position 'identifiable *codes*) stream)))
   (write-object object stream)
   object)
 
@@ -84,7 +146,6 @@
 (defmethod write-object ((object integer) stream)
   (assert (typep object `(unsigned-byte ,(* +integer-length+ 8))))
   (write-integer object +integer-length+ stream))
-
 
 (defun write-ascii-string (string stream)
   (loop for char across string
@@ -106,15 +167,15 @@
     (dump-object item stream)))
 
 (defun write-pointer-to-object (object stream)
-  (write-byte (position 'identifiable *codes*) stream)
   (write-integer (id object) +integer-length+ stream))
 
 (defmethod write-object ((description class-description) stream)
   (write-byte (class-description-id description) stream)
-  (write-object (class-description-name  description) stream)
-  (write-object (class-description-slots description) stream))
-
-(defvar *writing-standard-object* nil)
+  (write-object (class-description-name description) stream)
+  (write-object (map 'list
+                     #'slot-definition-name
+                     (class-description-slots description))
+                stream))
 
 (defmethod write-object ((object standard-object) stream)
   (if *writing-standard-object*
@@ -126,16 +187,25 @@
   (let* ((class (class-of object))
          (description (ensure-class-id class stream))
          (slots (class-description-slots description)))
-    (write-byte (type-code object) stream)
+    (write-byte (position 'standard-object *codes*) stream)
     (write-byte (class-description-id description) stream)
-    (loop for slot-def in (class-slots class)
-          for slot = (slot-definition-name slot-def)
-          for value = (slot-value object slot)
-          unless (or (eql slot 'movies)
+    (loop for slot-def across slots
+          for i from 0
+          for value = (sb-mop:slot-value-using-class class object slot-def)
+          unless (or (null (store-type slot-def))
                      (eql value (slot-definition-initform slot-def)))
           do
-          (write-byte (position slot slots) stream)
-          (dump-object value stream))
+          (write-byte i stream)
+          (if (eql (store-type slot-def) t)
+              (dump-object value stream)
+              (progn
+                (assert (subtypep (store-type slot-def)
+                                  (object-type value))
+                        nil
+                        "wanted ~a, got ~a "
+                        (store-type slot-def)
+                        (code-type (type-code value)))
+                (write-object value stream))))
     (write-byte +end-of-line+ stream)))
 
 ;;;
@@ -172,7 +242,7 @@
 
 (defmethod read-object ((type (eql 'string)) stream)
   (let* ((length (read-n-bytes +sequence-length+ stream))
-         (string (make-string length)))
+         (string (make-string length :element-type 'character)))
     (loop for i below length
           do (setf (char string i)
                    (code-char (read-n-bytes +char-length+ stream))))
@@ -190,25 +260,34 @@
 
 (defmethod read-object ((type (eql 'standard-object)) stream)
   (let* ((description (id-class (read-n-bytes 1 stream)))
-         (instance (make-instance (class-description-name description)
-                                  :id 0))
+         (class (find-class (class-description-name description)))
+         (instance (make-instance class :id 0))
          (slots (class-description-slots description)))
     (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end-of-line+)
-          do (setf (slot-value instance (elt slots slot-id))
-                   (read-next-object stream)))
+          for slot-def = (aref slots slot-id)
+          do (setf (sb-mop:slot-value-using-class
+                    class instance slot-def)
+                   (if (eql (store-type slot-def) t)
+                       (read-next-object stream)
+                       (read-object (store-type slot-def) stream))))
     (setf (index) instance)
     (setf *last-id* (max *last-id* (id instance)))
     (push instance *data*)
     instance))
 
 (defmethod read-object ((type (eql 'class-description)) stream)
-  (let ((id (read-n-bytes 1 stream)))
+  (let* ((id (read-n-bytes 1 stream))
+         (name (read-object 'symbol stream))
+         (class (find-class name)))
     (setf (id-class id)
           (make-class-description
            :id id
-           :name (read-object 'symbol stream)
-           :slots (read-object 'cons stream)))))
+           :name name
+           :slots (map 'vector
+                       (lambda (slot)
+                         (slot-effective-definition class slot))
+                       (read-object 'cons stream))))))
 
 ;;;
 
@@ -238,8 +317,10 @@
   #+sbcl (sb-mop:slot-definition-initform slot))
 
 (defun slots (class)
-  (mapcar #'slot-definition-name
-          (class-slots class)))
+  (coerce (class-slots class) 'vector))
+
+(defun slot-effective-definition (class slot-name)
+  (find slot-name (class-slots class) :key #'slot-definition-name))
 
 (defvar *class-cache* (make-array 20 :initial-element nil))
 (defvar *class-cache-size* 0)
