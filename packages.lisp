@@ -89,4 +89,3 @@
   (:use #:cl)
   (:export #:request
            #:*stream*))
-

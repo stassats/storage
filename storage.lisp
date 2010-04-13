@@ -70,7 +70,7 @@
       (setf *last-id* (max *last-id* id))
       (setf (id object) (incf *last-id*))))
 
-(defstruct class-description id name slots)
+(defstruct class-description id class slots)
 
 (defvar *codes* #(keyword integer
                   ascii-string string
@@ -167,7 +167,7 @@
 
 (defmethod write-object ((description class-description) stream)
   (write-byte (class-description-id description) stream)
-  (write-object (class-description-name description) stream)
+  (write-object (class-name (class-description-class description)) stream)
   (write-object (map 'list
                      #'slot-definition-name
                      (class-description-slots description))
@@ -256,7 +256,7 @@
 
 (defmethod read-object ((type (eql 'standard-object)) stream)
   (let* ((description (id-class (read-n-bytes 1 stream)))
-         (class (find-class (class-description-name description)))
+         (class (class-description-class description))
          (instance (make-instance class :id 0))
          (slots (class-description-slots description)))
     (loop for slot-id = (read-n-bytes 1 stream)
@@ -273,13 +273,13 @@
 
 (defmethod read-object ((type (eql 'class-description)) stream)
   (let* ((id (read-n-bytes 1 stream))
-         (name (read-object 'symbol stream))
-         (class (find-class name)))
-    (finalize-inheritance class)
+         (class (find-class (read-object 'symbol stream))))
+    (unless (class-finalized-p class)
+      (finalize-inheritance class))
     (setf (id-class id)
           (make-class-description
            :id id
-           :name name
+           :class class
            :slots (map 'vector
                        (lambda (slot)
                          (slot-effective-definition class slot))
@@ -310,17 +310,16 @@
   (fill *class-cache* nil)
   (setf *class-cache-size* 0))
 
-(defun class-id (class-name)
-  (loop for i below *class-cache-size*
-        for class across *class-cache*
-        when (eql class-name (class-description-name class))
-        return class))
+(defun class-id (class)
+  (find class *class-cache* :key
+        #'class-description-class
+        :end *class-cache-size*))
 
 (defun (setf class-id) (class)
   (let ((description
          (make-class-description
           :id *class-cache-size*
-          :name (class-name class)
+          :class class
           :slots (slots class))))
     (setf (aref *class-cache* *class-cache-size*)
           description)
@@ -328,7 +327,7 @@
     description))
 
 (defun ensure-class-id (class stream)
-  (or (class-id (class-name class))
+  (or (class-id class)
       (dump-object (setf (class-id) class) stream)))
 
 (defun id-class (id)
