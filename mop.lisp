@@ -19,9 +19,9 @@
     t)
 
 (defclass storable-slot-mixin ()
-  ((store-type :initarg :store-type
-               :initform t
-               :reader store-type)))
+  ((storep :initarg :storep
+           :initform t
+           :reader store-slot-p)))
 
 (defclass storable-direct-slot-definition (storable-slot-mixin
                                            standard-direct-slot-definition)
@@ -46,6 +46,6 @@
      slot-name
      direct-definitions)
   (let ((effective-definition (call-next-method)))
-    (setf (slot-value effective-definition 'store-type)
-          (store-type (car direct-definitions)))
+    (setf (slot-value effective-definition 'storep)
+          (store-slot-p (car direct-definitions)))
     effective-definition))

@@ -15,8 +15,7 @@
 (defclass identifiable ()
   ((id :accessor id
        :initarg :id
-       :initform nil
-       :store-type integer))
+       :initform nil))
   (:metaclass storable-class))
 
 (defmethod initialize-instance :after ((object identifiable)
@@ -175,20 +174,11 @@
     (loop for slot-def across (class-description-slots description)
           for i from 0
           for value = (slot-value-using-class class object slot-def)
-          unless (or (null (store-type slot-def))
+          unless (or (null (store-slot-p slot-def))
                      (eql value (slot-definition-initform slot-def)))
           do
           (write-byte i stream)
-          (if (eql (store-type slot-def) t)
-              (dump-object value stream)
-              (progn
-                (assert (subtypep (store-type slot-def)
-                                  (object-type value))
-                        nil
-                        "wanted ~a, got ~a "
-                        (store-type slot-def)
-                        (code-type (type-code value)))
-                (write-object value stream))))
+          (dump-object value stream))
     (write-byte +end-of-line+ stream)))
 
 ;;;
@@ -217,9 +207,7 @@
           until (= slot-id +end-of-line+)
           do (setf slot-def (aref slots slot-id)
                    (slot-value-using-class class instance slot-def)
-                   (if (eql (store-type slot-def) t)
-                       (read-next-object stream)
-                       (read-object (store-type slot-def) stream))))
+                   (read-next-object stream)))
     (setf (index) instance)
     (setf *last-id* (max *last-id* (id instance)))
     (push instance *data*)
