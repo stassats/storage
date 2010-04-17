@@ -149,8 +149,7 @@
 
 (defmethod write-object ((description class-description) stream)
   (write-object (class-name (class-description-class description)) stream)
-  (write-object (map 'list
-                     #'slot-definition-name
+  (write-object (map 'list #'slot-definition-name
                      (class-description-slots description))
                 stream))
 
@@ -268,13 +267,10 @@
   (dolist (object *data*)
     (write-standard-object object stream)))
 
-(defun find-object (id)
-  (index id))
-
-(defun %deidentify (value)
+(defun deidentify-slot (value)
   (typecase value
     (pointer
-     (find-object (pointer-id value)))
+     (index (pointer-id value)))
     (cons
      (mapl (lambda (x)
              (setf (car x)
@@ -283,10 +279,12 @@
     (t value)))
 
 (defun deidentify (object)
-  (loop for slot-def in (class-slots (class-of object))
-        for slot = (slot-definition-name slot-def)
-        do (setf (slot-value object slot)
-                 (%deidentify (slot-value object slot))))
+  (let* ((class (class-of object))
+         (slots (class-slots class)))
+    (loop for slot in slots
+          do (setf (slot-value-using-class class object slot)
+                   (deidentify-slot
+                    (slot-value-using-class class object slot)))))
   object)
 
 (defgeneric interlink-objects (object))
