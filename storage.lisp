@@ -28,11 +28,10 @@
   class
   (slots #() :type simple-vector))
 
-(defvar *codes* #(keyword integer
-                  ascii-string string
-                  identifiable standard-object
-                  cons symbol
-                  class-description))
+(defvar *codes* #(integer ascii-string
+                  identifiable cons
+                  string symbol
+                  standard-object))
 
 (defconstant +sequence-length+ 2)
 (defconstant +integer-length+ 3)
@@ -55,6 +54,15 @@
 (defun type-code (object)
   (position-if (lambda (x) (typep object x))
                *codes*))
+
+;; (defvar *statistics* ())
+;; (defun code-type (code)
+;;   (let* ((type (aref *codes* code))
+;;          (cons (assoc type *statistics*)))
+;;     (if cons
+;;         (incf (cdr cons))
+;;         (push (cons type 1) *statistics*))
+;;     type))
 
 (defun code-type (code)
   (aref *codes* code))
@@ -274,7 +282,7 @@
     (cons
      (mapl (lambda (x)
              (setf (car x)
-                   (%deidentify (car x))))
+                   (deidentify-slot (car x))))
            value))
     (t value)))
 
