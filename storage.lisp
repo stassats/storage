@@ -24,7 +24,9 @@
       (setf *last-id* (max *last-id* id))
       (setf (id object) (incf *last-id*))))
 
-(defstruct class-description class slots)
+(defstruct class-description
+  class
+  (slots #() :type simple-vector))
 
 (defvar *codes* #(keyword integer
                   ascii-string string
@@ -75,7 +77,7 @@
 
 (defun slots (class)
   (coerce (remove-if-not #'store-slot-p (class-slots class))
-          'vector))
+          'simple-vector))
 
 (defun slot-effective-definition (class slot-name)
   (find slot-name (class-slots class) :key #'slot-definition-name))
@@ -187,7 +189,7 @@
     (prog1 (setf (id-class *class-cache-size*)
                  (make-class-description
                   :class class
-                  :slots (map 'vector
+                  :slots (map 'simple-vector
                               (lambda (slot)
                                 (slot-effective-definition class slot))
                               (read-object 'cons stream))))
