@@ -54,16 +54,13 @@
   (position-if (lambda (x) (typep object x))
                *codes*))
 
-(defun object-type (object)
-  (find-if (lambda (x) (typep object x))
-           *codes*))
-
 (defun code-type (code)
   (aref *codes* code))
 
 (defun write-integer (integer bytes stream)
   (loop for low-bit to (* 8 (1- bytes)) by 8
         do (write-byte (ldb (byte 8 low-bit) integer) stream)))
+
 ;;;
 
 (defstruct pointer (id 0 :type fixnum))
@@ -77,7 +74,8 @@
   (setf (gethash (id object) *indexes*) object))
 
 (defun slots (class)
-  (coerce (class-slots class) 'vector))
+  (coerce (remove-if-not #'store-slot-p (class-slots class))
+          'vector))
 
 (defun slot-effective-definition (class slot-name)
   (find slot-name (class-slots class) :key #'slot-definition-name))
@@ -103,16 +101,6 @@
           description)
     (prog1 *class-cache-size*
       (incf *class-cache-size*))))
-
-(defun ensure-class-id (class stream)
-  (let ((id (class-id class)))
-    (cond (id (write-byte id stream)
-              (aref *class-cache* id))
-          (t (setf id (setf (class-id) class))
-             (write-byte id stream)
-             (let ((description (aref *class-cache* id)))
-               (write-object description stream)
-               description)))))
 
 (defun id-class (id)
   (aref *class-cache* id))
@@ -167,6 +155,16 @@
 (defmethod write-object ((object identifiable) stream)
   (write-integer (id object) +integer-length+ stream))
 
+(defun ensure-class-id (class stream)
+  (let ((id (class-id class)))
+    (cond (id (write-byte id stream)
+              (aref *class-cache* id))
+          (t (setf id (setf (class-id) class))
+             (write-byte id stream)
+             (let ((description (aref *class-cache* id)))
+               (write-object description stream)
+               description)))))
+
 (defun write-standard-object (object stream)
   (write-byte (position 'standard-object *codes*) stream)
   (let* ((class (class-of object))
@@ -174,8 +172,7 @@
     (loop for slot-def across (class-description-slots description)
           for i from 0
           for value = (slot-value-using-class class object slot-def)
-          unless (or (null (store-slot-p slot-def))
-                     (eql value (slot-definition-initform slot-def)))
+          unless (eql value (slot-definition-initform slot-def))
           do
           (write-byte i stream)
           (dump-object value stream))
@@ -297,6 +294,7 @@
 
 (defun read-file (file)
   (clear-class-cache)
+  (clrhash *indexes*)
   (let ((*package* (find-package 'movies)))
     (with-io-file (stream file)
       (loop while (read-next-object stream nil)))))
