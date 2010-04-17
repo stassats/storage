@@ -300,15 +300,17 @@
 (defmethod interlink-objects ((object t))
   nil)
 
+;;;
+
 (defun read-file (file)
-  (clear-class-cache)
-  (clrhash *indexes*)
   (let ((*package* (find-package 'movies)))
     (with-io-file (stream file)
       (loop while (read-next-object stream nil)))))
 
 (defun load-data (&optional (file *data-file*))
   (setf *data* nil)
+  (clear-class-cache)
+  (clrhash *indexes*)
   (read-file file)
   (dolist (object *data*)
     (deidentify object)
@@ -330,13 +332,9 @@
     object))
 
 (defun delete (object)
-  (setf *data* (remove object *data*))
+  (setf *data* (cl:delete object *data*))
   (when (typep object 'identifiable)
     (setf (id object) -1))
-  t)
-
-(defun delete-if (type test)
-  (setf *data* (remove-if (type-and-test type test) *data*))
   t)
 
 (defun where (&rest clauses)

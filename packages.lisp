@@ -2,12 +2,11 @@
 
 (defpackage #:movies
   (:use #:closer-common-lisp)
-  (:shadow #:count #:delete #:delete-if)
+  (:shadow #:count #:delete)
   (:export
    #:add
    #:where
    #:delete
-   #:delete-if
 
    #:*data-file*
    #:*data*
@@ -51,8 +50,6 @@
    #:id
    #:format-date
    #:month
-   #:delete
-   #:delete-if
    #:sort-hash-table-to-alist
    #:identifiable
    #:imdb-url
@@ -77,7 +74,7 @@
 
 (defpackage #:graphs
   (:use #:cl #:movies)
-  (:shadowing-import-from #:movies #:count #:delete #:delete-if)
+  (:shadowing-import-from #:movies #:count #:delete)
   (:export #:movies-by-decade
            #:views-per-month
            #:top-years
