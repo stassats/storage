@@ -6,7 +6,8 @@
 (in-package #:movies)
 
 (defclass storable-class (standard-class)
-  ())
+  ((slots-to-store :initform nil
+                   :accessor slots-to-store)))
 
 (defmethod validate-superclass
     ((class standard-class)
