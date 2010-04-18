@@ -107,7 +107,10 @@
   (aref *class-cache* id))
 
 (defun (setf id-class) (class id)
-  (setf (aref *class-cache* id) class))
+  (setf (aref *class-cache* id) class
+        *class-cache-size*
+        (max *class-cache-size* (1+ id)))
+  class)
 
 ;;;
 
@@ -155,7 +158,7 @@
 (defmethod write-object ((object identifiable) stream)
   (write-integer (id object) +integer-length+ stream))
 
-(defun ensure-class-id (class stream)
+(defun ensure-write-class (class stream)
   (let ((id (class-id class)))
     (cond (id (write-byte id stream))
           (t (setf id (setf (class-id) class))
@@ -166,7 +169,7 @@
 (defun write-standard-object (object stream)
   (write-byte (position 'standard-object *codes*) stream)
   (let ((class (class-of object)))
-    (ensure-class-id class stream)
+    (ensure-write-class class stream)
     (loop for slot-def across (slots-to-store class)
           for i from 0
           for value = (slot-value-using-class class object slot-def)
@@ -187,20 +190,22 @@
                (lambda (slot)
                  (slot-effective-definition class slot))
                (read-object 'cons stream)))
-    (setf (id-class *class-cache-size*) class)
-    (incf *class-cache-size*)
     class))
 
+(defun ensure-read-class (stream)
+  (let ((id (read-n-bytes 1 stream)))
+    (or (id-class id)
+        (setf (id-class id)
+              (read-object 'storable-class stream)))))
+
 (defmethod read-object ((type (eql 'standard-object)) stream)
-  (let* ((class (or (id-class (read-n-bytes 1 stream))
-                    (read-object 'storable-class stream)))
+  (let* ((class (ensure-read-class stream))
          (instance (make-instance class :id 0))
          (slots (slots-to-store class)))
-    (loop with slot-def
-          for slot-id = (read-n-bytes 1 stream)
+    (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end-of-line+)
-          do (setf slot-def (aref slots slot-id)
-                   (slot-value-using-class class instance slot-def)
+          do (setf (slot-value-using-class class instance
+                                           (aref slots slot-id))
                    (read-next-object stream)))
     (setf (index) instance)
     (setf *last-id* (max *last-id* (id instance)))
