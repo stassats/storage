@@ -33,7 +33,7 @@
 (defconstant +integer-length+ 3)
 (defconstant +char-length+ 2)
 
-(defconstant +end-of-line+ 255)
+(defconstant +end-of-slots+ 255)
 
 (defconstant +ascii-char-limit+ (code-char 128))
 
@@ -177,7 +177,7 @@
           do
           (write-byte i stream)
           (dump-object value stream))
-    (write-byte +end-of-line+ stream)))
+    (write-byte +end-of-slots+ stream)))
 
 ;;;
 
@@ -203,7 +203,7 @@
          (instance (make-instance class :id 0))
          (slots (slots-to-store class)))
     (loop for slot-id = (read-n-bytes 1 stream)
-          until (= slot-id +end-of-line+)
+          until (= slot-id +end-of-slots+)
           do (setf (slot-value-using-class class instance
                                            (aref slots slot-id))
                    (read-next-object stream)))
@@ -214,9 +214,9 @@
 
 (defun read-next-object (stream &optional (eof-error-p t))
   (let ((code (read-n-bytes 1 stream eof-error-p)))
-    (unless (or (not code)
-                (= code +end-of-line+))
-      (read-object (code-type code) stream))))
+    (when code
+      (read-object (code-type code)
+                   stream))))
 
 (defgeneric read-object (type stream))
 
