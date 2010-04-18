@@ -263,25 +263,23 @@
   (dolist (object *data*)
     (write-standard-object object stream)))
 
-(defun deidentify-slot (value)
+(defun replace-pointers-in-slot (value)
   (typecase value
     (pointer
      (index (pointer-id value)))
     (cons
      (mapl (lambda (x)
              (setf (car x)
-                   (deidentify-slot (car x))))
+                   (replace-pointers-in-slot (car x))))
            value))
     (t value)))
 
-(defun deidentify (object)
-  (let* ((class (class-of object))
-         (slots (slots-to-store class)))
-    (loop for slot across slots
-          do (setf (slot-value-using-class class object slot)
-                   (deidentify-slot
-                    (slot-value-using-class class object slot)))))
-  object)
+(defun replace-pointers (object)
+  (loop with class = (class-of object)
+        for slot across (slots-to-store class)
+        do (setf (slot-value-using-class class object slot)
+                 (replace-pointers-in-slot
+                  (slot-value-using-class class object slot)))))
 
 (defgeneric interlink-objects (object))
 
@@ -301,7 +299,7 @@
   (clrhash *indexes*)
   (read-file file)
   (dolist (object *data*)
-    (deidentify object)
+    (replace-pointers object)
     (interlink-objects object)))
 
 (defun save-data (&optional (file *data-file*))
