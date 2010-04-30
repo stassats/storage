@@ -6,7 +6,35 @@
 (in-package #:movies)
 
 (defvar *data-file* (merge-pathnames "doc/movies.db" (user-homedir-pathname)))
-(defvar *data* ())
+(defvar *data* (make-hash-table))
+
+(defun objects-of-type (type)
+  (gethash type *data*))
+
+(defun (setf objects-of-type) (value type)
+  (setf (gethash type *data*) value))
+
+(defun store-object (object)
+  (push object (objects-of-type (type-of object))))
+
+(defun clear-data-cache ()
+  (clrhash *data*))
+
+(defun delete (object)
+  (setf (objects-of-type (type-of object))
+        (cl:delete object (objects-of-type (type-of object))))
+  (when (typep object 'identifiable)
+    (setf (id object) -1))
+  t)
+
+(defun map-data (function)
+  (maphash function *data*))
+
+(defun map-type (type function)
+  (maphash (lambda (key value)
+             (when (subtypep key type)
+               (map nil function value)))
+           *data*))
 
 (defvar *last-id* -1)
 
@@ -18,11 +46,18 @@
        :initform nil))
   (:metaclass storable-class))
 
+(defmethod update-instance-for-different-class
+    :after ((previous identifiable) (current identifiable) &key)
+  (delete previous)
+  (store-object current))
+
 (defmethod initialize-instance :after ((object identifiable)
                                        &key id)
   (if (integerp id)
       (setf *last-id* (max *last-id* id))
       (setf (id object) (incf *last-id*))))
+
+;;;
 
 (defvar *codes* #(integer ascii-string
                   identifiable cons
@@ -209,7 +244,7 @@
                    (read-next-object stream)))
     (setf (index) instance)
     (setf *last-id* (max *last-id* (id instance)))
-    (push instance *data*)
+    (store-object instance)
     instance))
 
 (defun read-next-object (stream &optional (eof-error-p t))
@@ -262,11 +297,12 @@
 
 ;;;
 
-
 (defun dump-data (stream)
   (clear-class-cache)
-  (dolist (object *data*)
-    (write-standard-object object stream)))
+  (map-data (lambda (type objects)
+               (declare (ignore type))
+               (dolist (object objects)
+                 (write-standard-object object stream)))))
 
 (defun replace-pointers-in-slot (value)
   (typecase value
@@ -298,20 +334,24 @@
     (with-io-file (stream file)
       (loop while (read-next-object stream nil)))))
 
-(defun load-data (&optional (file *data-file*))
-  (setf *data* nil)
+(defun clear-cashes ()
   (clear-class-cache)
-  (clrhash *indexes*)
+  (clear-data-cache)
+  (clrhash *indexes*))
+
+(defun load-data (&optional (file *data-file*))
+  (clear-cashes)
   (read-file file)
-  (dolist (object *data*)
-    (replace-pointers object)
-    (interlink-objects object)))
+  (map-data (lambda (type objects)
+               (declare (ignore type))
+               (dolist (object objects)
+                 (replace-pointers object)
+                 (interlink-objects object)))))
 
 (defun save-data (&optional (file *data-file*))
-  (when *data*
-    (with-open-file (stream file :direction :output :if-exists :supersede
-                            :element-type 'unsigned-byte)
-      (dump-data stream))))
+  (with-open-file (stream file :direction :output :if-exists :supersede
+                          :element-type 'unsigned-byte)
+    (dump-data stream)))
 
 ;;; Data manipulations
 
@@ -319,14 +359,8 @@
 
 (defmethod add (type &rest args &key &allow-other-keys)
   (let ((object (apply #'make-instance type args)))
-    (push object *data*)
+    (store-object object)
     object))
-
-(defun delete (object)
-  (setf *data* (cl:delete object *data*))
-  (when (typep object 'identifiable)
-    (setf (id object) -1))
-  t)
 
 (defun where (&rest clauses)
   (let ((slots (loop for slot in clauses by #'cddr
@@ -352,11 +386,25 @@
   (lambda (object) (and (typep object type)
                         (funcall test object))))
 
-(defun lookup (type &optional (test #'identity))
-  (let ((result (remove-if-not (type-and-test type test) *data*)))
-    (if (= (length result) 1)
-        (car result)
-        result)))
+(defun lookup (type &optional test)
+  (let (results)
+    (map-data (lambda (key objects)
+                (when (subtypep key type)
+                  (setf results
+                        (append (if test
+                                    (remove-if-not test objects)
+                                    objects)
+                                results)))))
+    (if (= (length results) 1)
+        (car results)
+        results)))
 
-(defun count (type &optional (test #'identity))
-  (count-if (type-and-test type test) *data*))
+(defun count (type &optional test)
+  (let ((count 0))
+    (map-data (lambda (key objects)
+                (when (subtypep key type)
+                  (incf count
+                        (if (null test)
+                            (length objects)
+                            (count-if test objects))))))
+    count))

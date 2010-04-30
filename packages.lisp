@@ -7,9 +7,10 @@
    #:add
    #:where
    #:delete
+   #:objects-of-type
+   #:map-type
 
    #:*data-file*
-   #:*data*
 
    #:person
    #:male
