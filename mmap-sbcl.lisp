@@ -10,15 +10,25 @@
   (position 0 :type fixnum)
   (length 0 :type fixnum))
 
-(defun mmap (file-stream)
+(defun scale-file (stream size)
+  (file-position stream (1- size))
+  (write-byte 0 stream)
+  (finish-output stream))
+
+(defun mmap (file-stream
+             &key direction size)
+  (when (eql direction :output)
+    (scale-file file-stream size))
   (make-mmap-stream
    :sap (sb-posix:mmap nil
-                       (file-length file-stream)
-                       sb-posix:prot-read
+                       (or size (file-length file-stream))
+                       (ecase direction
+                         (:input sb-posix:prot-read)
+                         (:output sb-posix:prot-write))
                        sb-posix:map-shared
                        (sb-sys:fd-stream-fd file-stream)
                        0)
-   :length (file-length file-stream)))
+   :length (or size (file-length file-stream))))
 
 (defun munmap (mmap-stream)
   (sb-posix:munmap (mmap-stream-sap mmap-stream)
@@ -52,10 +62,31 @@
      (setf (mmap-stream-position stream)
            new-position))))
 
-(defmacro with-io-file ((stream file) &body body)
+(declaim (inline write-n-bytes))
+(defun write-n-bytes (value n stream)
+  (declare (optimize speed)
+           (fixnum n))
+  (let* ((sap (mmap-stream-sap stream))
+         (position (mmap-stream-position stream))
+         (new-position (+ position n)))
+    (when (> new-position
+             (mmap-stream-length stream))
+      (error "End of file ~a" stream))
+    (setf (sb-sys:sap-ref-32 sap position) value)
+    (setf (mmap-stream-position stream)
+          new-position)))
+
+(defmacro with-io-file ((stream file &key (direction :input) size)
+                        &body body)
   (let ((fd-stream (gensym)))
-    `(with-open-file (,fd-stream ,file)
-       (let ((,stream (mmap ,fd-stream)))
+    `(with-open-file (,fd-stream ,file
+                                 :direction (if (eql ,direction :output)
+                                                :io
+                                                ,direction)
+                                 :if-exists :supersede
+                                 :if-does-not-exist :create
+                                 :element-type '(unsigned-byte 8))
+       (let ((,stream (mmap ,fd-stream :direction ,direction :size ,size)))
          (unwind-protect
               (progn ,@body)
            (munmap ,stream))))))

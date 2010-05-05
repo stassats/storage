@@ -24,6 +24,14 @@
         do (setf (ldb (byte 8 low-bit) value) byte)
         finally (return value)))
 
-(defmacro with-io-file ((stream file) &body body)
-  `(with-open-file (,stream ,file :element-type '(unsigned-byte 8))
+(defun write-n-bytes (integer bytes stream)
+  (loop for low-bit to (* 8 (1- bytes)) by 8
+        do (write-byte (ldb (byte 8 low-bit) integer) stream)))
+
+(defmacro with-io-file ((stream file &key (direction :input) size) &body body)
+  (declare (ignore size))
+  `(with-open-file (,stream ,file
+                            :element-type '(unsigned-byte 8)
+                            :direction ,direction
+                            :if-exists :supersede)
      ,@body))
