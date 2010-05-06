@@ -84,11 +84,6 @@
                 (char< x +ascii-char-limit+))
               string)))
 
-(defun type-code (object)
-  (declare (optimize speed))
-  (position-if (lambda (x) (typep object x))
-               *codes*))
-
 ;; (defvar *statistics* ())
 ;; (defun code-type (code)
 ;;   (let* ((type (aref *codes* code))
@@ -100,6 +95,10 @@
 
 (defun code-type (code)
   (aref *codes* code))
+
+(declaim (inline type-code))
+(defun type-code (type)
+  (position-if (lambda (x) (subtypep type x)) *codes*))
 
 ;;;
 
@@ -148,7 +147,7 @@
 
 ;;;
 
-(defgeneric write-object (object stream))
+(defgeneric write-object (object stream &key omit-type))
 (defgeneric object-size (object))
 
 (defun data-size (object)
@@ -156,7 +155,6 @@
      (object-size object)))
 
 (defun dump-object (object stream)
-  (write-n-bytes (type-code object) 1 stream)
   (write-object object stream)
   object)
 
@@ -164,7 +162,9 @@
   (+ 1 ;; length
      (length (symbol-name object))))
 
-(defmethod write-object ((object symbol) stream)
+(defmethod write-object ((object symbol) stream &key omit-type)
+  (unless omit-type
+    (write-n-bytes (type-code 'symbol) 1 stream))
   (let ((name (symbol-name object)))
     (write-n-bytes (length name) 1 stream)
     (write-ascii-string name stream)))
@@ -172,8 +172,10 @@
 (defmethod object-size ((object integer))
   +integer-length+)
 
-(defmethod write-object ((object integer) stream)
+(defmethod write-object ((object integer) stream &key omit-type)
   (assert (typep object `(unsigned-byte ,(* +integer-length+ 8))))
+  (unless omit-type
+    (write-n-bytes (type-code 'integer) 1 stream))
   (write-n-bytes object +integer-length+ stream))
 
 (defun write-ascii-string (string stream)
@@ -191,11 +193,18 @@
        (string (* (length string)
                   +char-length+)))))
 
-(defmethod write-object ((string string) stream)
-  (write-n-bytes (length string) +sequence-length+ stream)
+(defmethod write-object ((string string) stream &key omit-type)
   (etypecase string
-    (ascii-string (write-ascii-string string stream))
-    (string (write-multibyte-string string stream))))
+    (ascii-string
+     (unless omit-type
+       (write-n-bytes (type-code 'ascii-string) 1 stream))
+     (write-n-bytes (length string) +sequence-length+ stream)
+     (write-ascii-string string stream))
+    (string
+     (unless omit-type
+       (write-n-bytes (type-code 'string) 1 stream))
+     (write-n-bytes (length string) +sequence-length+ stream)
+     (write-multibyte-string string stream))))
 
 (defmethod object-size ((list cons))
   (+ +sequence-length+
@@ -204,7 +213,9 @@
                (+ x y))
              list :key #'data-size)))
 
-(defmethod write-object ((list cons) stream)
+(defmethod write-object ((list cons) stream &key omit-type)
+  (unless omit-type
+    (write-n-bytes (type-code 'cons) 1 stream))
   (write-n-bytes (length list) +sequence-length+ stream)
   (dolist (item list)
     (dump-object item stream)))
@@ -216,18 +227,24 @@
              :key (lambda (x)
                     (object-size (slot-definition-name x))))))
 
-(defmethod write-object ((class storable-class) stream)
-  (write-object (class-name class) stream)
+(defmethod write-object ((class storable-class) stream &key omit-type)
+  (unless omit-type
+    (write-n-bytes (type-code 'storable-class) 1 stream))
+  (write-object (class-name class) stream
+                 :omit-type t)
   (let ((slots (slots-to-store class)))
     (write-n-bytes (length slots) +sequence-length+ stream)
     (loop for slot across slots
           do (write-object (slot-definition-name slot)
-                           stream))))
+                           stream
+                            :omit-type t))))
 
 (defmethod object-size ((object identifiable))
   +integer-length+)
 
-(defmethod write-object ((object identifiable) stream)
+(defmethod write-object ((object identifiable) stream &key omit-type)
+  (unless omit-type
+    (write-n-bytes (type-code 'identifiable) 1 stream))
   (write-n-bytes (id object) +integer-length+ stream))
 
 (defun ensure-write-class (class stream)
@@ -235,7 +252,7 @@
     (cond (id (write-n-bytes id 1 stream))
           (t (setf id (setf (class-id) class))
              (write-n-bytes id 1 stream)
-             (write-object class stream)))
+             (write-object class stream :omit-type t)))
     class))
 
 (defvar *counted-classes* nil)
@@ -262,7 +279,7 @@
        )))
 
 (defun write-standard-object (object stream)
-  (write-n-bytes (position 'standard-object *codes*) 1 stream)
+  (write-n-bytes (type-code 'standard-object) 1 stream)
   (let ((class (class-of object)))
     (ensure-write-class class stream)
     (loop for slot-def across (slots-to-store class)
