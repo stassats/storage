@@ -216,11 +216,11 @@
      (write-multibyte-string string stream))))
 
 (defmethod object-size ((list cons))
-  (+ +sequence-length+
-     (reduce (lambda (x y)
-               (declare (fixnum x y))
-               (+ x y))
-             list :key #'data-size)))
+  (let ((count +sequence-length+ ))
+    (mapc (lambda (x)
+            (incf count (data-size x)))
+          list)
+    count))
 
 (defmethod write-object ((list cons) stream &key omit-type)
   (unless omit-type
@@ -269,8 +269,7 @@
 (defvar *counted-classes* nil)
 (defun class-size (class)
   (cond ((member class *counted-classes* :test #'eq)
-         1 ;; class-id
-         )
+         1) ;; class-id
         (t
          (push class *counted-classes*)
          (+ 1 ;; class-id
