@@ -198,6 +198,12 @@
 
 (defmethod write-object ((string string) stream &key omit-type)
   (etypecase string
+    #+sb-unicode
+    (simple-base-string
+     (unless omit-type
+       (write-n-bytes #.(type-code 'ascii-string) 1 stream))
+     (write-n-bytes (length string) +sequence-length+ stream)
+     (write-ascii-string-optimzed (length string) string stream))
     (ascii-string
      (unless omit-type
        (write-n-bytes #.(type-code 'ascii-string) 1 stream))
@@ -226,9 +232,11 @@
 (defmethod object-size ((class storable-class))
   (+ (object-size (class-name class))
      +sequence-length+ ;; length of list
-     (reduce #'+ (slots-to-store class)
-             :key (lambda (x)
-                    (object-size (slot-definition-name x))))))
+     (let ((slots (slots class)))
+       (setf (slots-to-store class) slots)
+       (reduce #'+ slots
+               :key (lambda (x)
+                      (object-size (slot-definition-name x)))))))
 
 (defmethod write-object ((class storable-class) stream &key omit-type)
   (unless omit-type
@@ -355,6 +363,7 @@
     (loop for i below length
           do (setf (char string i)
                    (code-char (read-n-bytes 1 stream))))
+    ;; (read-ascii-string-optimized length string stream)
     string))
 
 (defmethod read-object ((type (eql 'ascii-string)) stream)

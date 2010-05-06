@@ -76,6 +76,23 @@
     (setf (mmap-stream-position stream)
           new-position)))
 
+(defun write-ascii-string-optimzed (length string stream)
+  (declare (optimize speed (safety 0))
+           (type fixnum length))
+  (sb-sys:with-pinned-objects (string)
+    (let* ((position (mmap-stream-position stream))
+           (new-position (+ position length))
+           (mmap-sap (sb-sys:sap+ (mmap-stream-sap stream) position))
+           (string-sap (sb-sys:vector-sap string)))
+      (when (> new-position
+               (mmap-stream-length stream))
+        (error "End of file ~a" stream))
+      (setf (mmap-stream-position stream)
+            new-position)
+      (loop for i below length by (/ sb-vm::n-word-bits 8)
+            do (setf (sb-sys:sap-ref-32 mmap-sap i)
+                     (sb-sys:sap-ref-32 string-sap i))))))
+
 (defmacro with-io-file ((stream file &key (direction :input) size)
                         &body body)
   (let ((fd-stream (gensym)))
