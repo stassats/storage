@@ -276,17 +276,18 @@
             (object-size class)))))
 
 (defun standard-object-size (object)
-  (let ((class (class-of object)))
+  (let* ((class (class-of object))
+         (slots (slots-to-store class)))
+    (declare (type (simple-array t (*)) slots))
     (+ 1 ;; data type
        (class-size class)
-       (loop for slot-def across (slots-to-store class)
+       (loop for slot-def across slots
              for i from 0
              for value = (slot-value-using-class class object slot-def)
              unless (eql value (slot-definition-initform slot-def))
              sum (+ 1 ;; slot id
-                    (data-size value)))
-       1 ;; end-of-slots
-       )))
+                    (the fixnum (data-size value))))
+       1))) ;; end-of-slots
 
 (defun write-standard-object (object stream)
   (write-n-bytes #.(type-code 'standard-object) 1 stream)
