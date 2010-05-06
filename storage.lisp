@@ -155,12 +155,8 @@
 (defgeneric write-object (object stream))
 (defgeneric object-size (object))
 
-(defun data-size (object)
-  (+ 1 ;; object-type
-     (object-size object)))
-
 (defmethod object-size ((object symbol))
-  (+ 1 ;; length
+  (+ 2 ;; type + length
      (length (symbol-name object))))
 
 (defmethod write-object ((object symbol) stream)
@@ -170,7 +166,7 @@
     (write-ascii-string name stream)))
 
 (defmethod object-size ((object integer))
-  +integer-length+)
+  (+ 1 +integer-length+))
 
 (defmethod write-object ((object integer) stream)
   (assert (typep object #.`'(unsigned-byte ,(* +integer-length+ 8))))
@@ -186,7 +182,8 @@
         do (write-n-bytes (char-code char) +char-length+ stream)))
 
 (defmethod object-size ((string string))
-  (+ +sequence-length+
+  (+ 1
+     +sequence-length+
      (etypecase string
        (ascii-string (length string))
        (string (* (length string)
@@ -209,9 +206,9 @@
      (write-multibyte-string string stream))))
 
 (defmethod object-size ((list cons))
-  (let ((count +sequence-length+ ))
+  (let ((count (+ 1 +sequence-length+)))
     (mapc (lambda (x)
-            (incf count (data-size x)))
+            (incf count (object-size x)))
           list)
     count))
 
@@ -222,13 +219,14 @@
     (write-object item stream)))
 
 (defmethod object-size ((class storable-class))
-  (+ (data-size (class-name class))
+  (+ 2
+     (object-size (class-name class))
      +sequence-length+ ;; length of list
      (let ((slots (slots class)))
        (setf (slots-to-store class) slots)
        (reduce #'+ slots
                :key (lambda (x)
-                      (data-size (slot-definition-name x)))))))
+                      (object-size (slot-definition-name x)))))))
 
 (defmethod write-object ((class storable-class) stream)
   (write-n-bytes #.(type-code 'storable-class) 1 stream)
@@ -240,7 +238,7 @@
                            stream))))
 
 (defmethod object-size ((object identifiable))
-  +integer-length+)
+  (+ 1 +integer-length+))
 
 (defmethod write-object ((object identifiable) stream)
   (write-n-bytes #.(type-code 'identifiable) 1 stream)
@@ -260,8 +258,7 @@
          1) ;; class-id
         (t
          (push class *counted-classes*)
-         (+ 1 ;; class-id
-            (data-size class)))))
+         (object-size class))))
 
 (defun standard-object-size (object)
   (let* ((class (class-of object))
@@ -274,7 +271,7 @@
              for value = (slot-value-using-class class object slot-def)
              unless (eql value (slot-definition-initform slot-def))
              sum (+ 1 ;; slot id
-                    (data-size value)))
+                    (object-size value)))
        1))) ;; end-of-slots
 
 (defun write-standard-object (object stream)
