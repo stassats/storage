@@ -7,7 +7,9 @@
 
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil
-                   :accessor slots-to-store)))
+                   :accessor slots-to-store)
+   (class-id :initform 0
+             :accessor class-id)))
 
 (defmethod validate-superclass
     ((class standard-class)
