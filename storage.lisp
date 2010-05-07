@@ -125,30 +125,23 @@
   (find slot-name (class-slots class) :key #'slot-definition-name))
 
 (defvar *class-cache* (make-array 20 :initial-element nil))
-(defvar *class-cache-size* 0)
+(defvar *class-last-id* 0)
 
 (defun clear-class-cache ()
   (fill *class-cache* nil)
-  (setf *class-cache-size* 0))
+  (setf *class-cache-size* 0
+        *class-last-id* 0))
 
-(defun class-id (class)
-  (position class *class-cache* :end *class-cache-size*))
+(defun assign-id-to-class (class)
+  (prog1 (setf (class-id class)
+               *class-last-id*)
+    (incf *class-last-id*)))
 
-(defun (setf class-id) (class)
-  (setf
-   (slots-to-store class) (slots class)
-   (aref *class-cache* *class-cache-size*) class)
-  (prog1 *class-cache-size*
-    (incf *class-cache-size*)))
+(defun cache-class-with-id (class id)
+  (setf (aref *class-cache* id) class))
 
-(defun id-class (id)
+(defun find-class-by-id (id)
   (aref *class-cache* id))
-
-(defun (setf id-class) (class id)
-  (setf (aref *class-cache* id) class
-        *class-cache-size*
-        (max *class-cache-size* (1+ id)))
-  class)
 
 ;;;
 
@@ -219,7 +212,8 @@
     (write-object item stream)))
 
 (defmethod object-size ((class storable-class))
-  (+ 2
+  (+ 1 ;;type
+     1 ;; class-id
      (object-size (class-name class))
      +sequence-length+ ;; length of list
      (let ((slots (slots class)))
@@ -231,6 +225,7 @@
 (defmethod write-object ((class storable-class) stream)
   (write-n-bytes #.(type-code 'storable-class) 1 stream)
   (write-object (class-name class) stream)
+  (write-n-bytes (class-id class) 1 stream)
   (let ((slots (slots-to-store class)))
     (write-n-bytes (length slots) +sequence-length+ stream)
     (loop for slot across slots
@@ -244,28 +239,20 @@
   (write-n-bytes #.(type-code 'identifiable) 1 stream)
   (write-n-bytes (id object) +integer-length+ stream))
 
-(defun ensure-write-class (class stream)
-  (let ((id (class-id class)))
-    (cond (id (write-n-bytes id 1 stream))
-          (t (setf id (setf (class-id) class))
-             (write-n-bytes id 1 stream)
-             (write-object class stream)))
-    class))
-
 (defvar *counted-classes* nil)
 (defun class-size (class)
   (cond ((member class *counted-classes* :test #'eq)
          1) ;; class-id
         (t
          (push class *counted-classes*)
-         (object-size class))))
+         (1+ (object-size class)))))
 
 (defun standard-object-size (object)
   (let* ((class (class-of object))
          (slots (slots-to-store class)))
     (declare (type (simple-array t (*)) slots))
     (+ 1 ;; data type
-       (class-size class)
+       1 ;; class id
        (loop for slot-def across slots
              for i from 0
              for value = (slot-value-using-class class object slot-def)
@@ -277,7 +264,7 @@
 (defun write-standard-object (object stream)
   (write-n-bytes #.(type-code 'standard-object) 1 stream)
   (let ((class (class-of object)))
-    (ensure-write-class class stream)
+    (write-n-bytes (class-id class) 1 stream)
     (loop for slot-def across (slots-to-store class)
           for i from 0
           for value = (slot-value-using-class class object slot-def)
@@ -291,6 +278,8 @@
 
 (defmethod read-object ((type (eql 'storable-class)) stream)
   (let ((class (find-class (read-next-object stream))))
+    (cache-class-with-id class
+                         (read-n-bytes 1 stream))
     (unless (class-finalized-p class)
       (finalize-inheritance class))
     (let* ((length (read-n-bytes +sequence-length+ stream))
@@ -303,14 +292,8 @@
             vector))
     class))
 
-(defun ensure-read-class (stream)
-  (let ((id (read-n-bytes 1 stream)))
-    (or (id-class id)
-        (setf (id-class id)
-              (read-next-object stream)))))
-
 (defmethod read-object ((type (eql 'standard-object)) stream)
-  (let* ((class (ensure-read-class stream))
+  (let* ((class (find-class-by-id (read-n-bytes 1 stream)))
          (instance (make-instance class :id 0))
          (slots (slots-to-store class)))
     (loop for slot-id = (read-n-bytes 1 stream)
@@ -380,18 +363,18 @@
   (setf *counted-classes* nil)
   (let ((result 0))
     (map-data (lambda (type objects)
-               (declare (ignore type))
-               (dolist (object objects)
-                 (incf result
-                       (standard-object-size object)))))
+                (incf result (object-size (find-class type)))
+                (dolist (object objects)
+                  (incf result
+                        (standard-object-size object)))))
     result))
 
 (defun dump-data (stream)
   (clear-class-cache)
   (map-data (lambda (type objects)
-               (declare (ignore type))
-               (dolist (object objects)
-                 (write-standard-object object stream)))))
+              (write-object (find-class type) stream)
+              (dolist (object objects)
+                (write-standard-object object stream)))))
 
 (defun replace-pointers-in-slot (value)
   (typecase value
