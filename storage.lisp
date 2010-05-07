@@ -345,10 +345,12 @@
 
 (defun read-ascii-string (length stream)
   (let ((string (make-string length :element-type 'base-char)))
+    #-sbcl
     (loop for i below length
           do (setf (char string i)
                    (code-char (read-n-bytes 1 stream))))
-    ;; (read-ascii-string-optimized length string stream)
+    #+(and sbcl (or x86 x86-64))
+    (read-ascii-string-optimized length string stream)
     string))
 
 (defmethod read-object ((type (eql 'ascii-string)) stream)
