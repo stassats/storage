@@ -32,8 +32,8 @@
 
 (defun munmap (mmap-stream)
   (sb-posix:munmap (mmap-stream-sap mmap-stream)
-                   (mmap-stream-length mmap-stream)))
-
+                   (mmap-stream-length mmap-stream))
+  (setf (mmap-stream-sap mmap-stream) (sb-sys:int-sap 0)))
 
 (declaim (inline sap-ref-24))
 (defun sap-ref-24 (sap offset)
@@ -45,22 +45,22 @@
 (defun read-n-bytes (n stream &optional (eof-error-p t))
   (declare (optimize speed)
            (fixnum n))
-  (let ((new-position (+ (mmap-stream-position stream) n)))
+  (let* ((position (mmap-stream-position stream))
+         (new-position (+ position n)))
     (when (> new-position
-            (mmap-stream-length stream))
-     (if eof-error-p
-         (error "End of file ~a" stream)
-         (return-from read-n-bytes)))
-   (prog1
-       (funcall (ecase n
-                  (1 #'sb-sys:sap-ref-8)
-                  (2 #'sb-sys:sap-ref-16)
-                  (3 #'sap-ref-24)
-                  (4 #'sb-sys:sap-ref-32))
-                (mmap-stream-sap stream)
-                (mmap-stream-position stream))
-     (setf (mmap-stream-position stream)
-           new-position))))
+             (mmap-stream-length stream))
+      (if eof-error-p
+          (error "End of file ~a" stream)
+          (return-from read-n-bytes)))
+    (setf (mmap-stream-position stream)
+          new-position)
+    (funcall (ecase n
+               (1 #'sb-sys:sap-ref-8)
+               (2 #'sb-sys:sap-ref-16)
+               (3 #'sap-ref-24)
+               (4 #'sb-sys:sap-ref-32))
+             (mmap-stream-sap stream)
+             position)))
 
 (declaim (inline write-n-bytes))
 (defun write-n-bytes (value n stream)
@@ -77,8 +77,7 @@
           new-position)))
 
 (defun write-ascii-string-optimzed (length string stream)
-  (declare (optimize speed (safety 0))
-           (type fixnum length))
+  (declare (type fixnum length))
   (sb-sys:with-pinned-objects (string)
     (let* ((position (mmap-stream-position stream))
            (new-position (+ position length))
@@ -90,8 +89,11 @@
       (setf (mmap-stream-position stream)
             new-position)
       (loop for i below length by (/ sb-vm::n-word-bits 8)
-            do (setf (sb-sys:sap-ref-32 mmap-sap i)
-                     (sb-sys:sap-ref-32 string-sap i))))))
+            do
+            #+x86 (setf (sb-sys:sap-ref-32 mmap-sap i)
+                        (sb-sys:sap-ref-32 string-sap i))
+            #+x86-64 (setf (sb-sys:sap-ref-64 mmap-sap i)
+                           (sb-sys:sap-ref-64 string-sap i))))))
 
 (defmacro with-io-file ((stream file &key (direction :input) size)
                         &body body)
@@ -101,7 +103,6 @@
                                                 :io
                                                 ,direction)
                                  :if-exists :supersede
-                                 :if-does-not-exist :create
                                  :element-type '(unsigned-byte 8))
        (let ((,stream (mmap ,fd-stream :direction ,direction :size ,size)))
          (unwind-protect
