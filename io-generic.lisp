@@ -34,4 +34,7 @@
                             :element-type '(unsigned-byte 8)
                             :direction ,direction
                             :if-exists :supersede)
-     ,@body))
+     (unwind-protect
+          (progn ,@body)
+       (when (eql ,direction :output)
+         (finish-output ,stream)))))

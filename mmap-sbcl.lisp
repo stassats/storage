@@ -131,4 +131,7 @@
        (let ((,stream (mmap ,fd-stream :direction ,direction :size ,size)))
          (unwind-protect
               (progn ,@body)
-           (munmap ,stream))))))
+           (progn (munmap ,stream)
+                  (when (eql ,direction :output)
+                    (sb-posix:fdatasync
+                     (sb-sys:fd-stream-fd ,fd-stream)))))))))

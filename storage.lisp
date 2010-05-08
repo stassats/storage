@@ -161,8 +161,8 @@
 
 (defun measure-size ()
   (let ((result 0))
-    (map-data (lambda (type objects)
-                (incf result (object-size (find-class type)))
+    (map-data (lambda (class objects)
+                (incf result (object-size class))
                 (dolist (object objects)
                   (incf result
                         (standard-object-size object)))))
@@ -170,8 +170,8 @@
 
 (defun dump-data (stream)
   (clear-class-cache)
-  (map-data (lambda (type objects)
-              (write-object (find-class type) stream)
+  (map-data (lambda (class objects)
+              (write-object class stream)
               (dolist (object objects)
                 (write-standard-object object stream)))))
 
