@@ -28,18 +28,15 @@
   t)
 
 (defun map-data (function)
-  (map nil (lambda (x)
-             (funcall function
-                      x (objects-of-class x)))
-       *data*))
+  (dolist (class *data*)
+    (funcall function
+             class (objects-of-class class))))
 
 (defun map-type (type function)
-  (map nil
-       (lambda (class)
-         (when (subtypep class type)
-           (map nil function
-                (objects-of-class class))))
-       *data*))
+  (dolist (class *data*)
+    (when (subtypep class type)
+      (map nil function
+           (objects-of-class class)))))
 ;;;
 
 (defvar *last-id* -1)
@@ -426,10 +423,10 @@
   (clear-cashes)
   (read-file file)
   (map-data (lambda (type objects)
-               (declare (ignore type))
-               (dolist (object objects)
-                 (replace-pointers object)
-                 (interlink-objects object)))))
+              (declare (ignore type))
+              (dolist (object objects)
+                (replace-pointers object)
+                (interlink-objects object)))))
 
 (defun save-data (&optional (file *data-file*))
   (with-io-file (stream file :direction :output
