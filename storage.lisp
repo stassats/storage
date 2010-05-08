@@ -387,15 +387,16 @@
 ;;;
 
 (defun replace-pointers-in-slot (value)
-  (typecase value
-    (pointer
-     (object-from-pointer value))
-    (cons
-     (mapl (lambda (x)
-             (setf (car x)
-                   (replace-pointers-in-slot (car x))))
-           value))
-    (t value)))
+  (flet ((replace-recursively (x)
+           (setf (car x)
+                 (replace-pointers-in-slot (car x)))))
+    (typecase value
+      (pointer
+       (object-from-pointer value))
+      (cons
+       (loop for x on value
+             do (replace-recursively x)))
+      (t value))))
 
 (defun replace-pointers (object)
   (loop with class = (class-of object)
