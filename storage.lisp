@@ -392,7 +392,8 @@
        (object-from-pointer value))
       (cons
        (loop for x on value
-             do (replace-recursively x)))
+             do (replace-recursively x))
+       value)
       (t value))))
 
 (defun replace-pointers (object)
