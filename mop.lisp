@@ -9,7 +9,9 @@
   ((slots-to-store :initform nil
                    :accessor slots-to-store)
    (class-id :initform 0
-             :accessor class-id)))
+             :accessor class-id)
+   (objects :initform nil
+            :accessor objects-of-class)))
 
 (defmethod validate-superclass
     ((class standard-class)

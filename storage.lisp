@@ -6,35 +6,40 @@
 (in-package #:movies)
 
 (defvar *data-file* (merge-pathnames "doc/movies.db" (user-homedir-pathname)))
-(defvar *data* (make-hash-table))
+(defvar *data* nil)
 
 (defun objects-of-type (type)
-  (gethash type *data*))
+  (objects-of-class (find-class type)))
 
 (defun (setf objects-of-type) (value type)
-  (setf (gethash type *data*) value))
+  (setf (objects-of-class (find-class type)) value))
 
 (defun store-object (object)
-  (push object (objects-of-type (type-of object))))
+  (push object (objects-of-class (class-of object))))
 
 (defun clear-data-cache ()
-  (clrhash *data*))
+  (setf *data* nil))
 
 (defun delete (object)
-  (setf (objects-of-type (type-of object))
-        (cl:delete object (objects-of-type (type-of object))))
+  (setf (objects-of-class (class-of object))
+        (cl:delete object (objects-of-class (class-of object))))
   (when (typep object 'identifiable)
     (setf (id object) -1))
   t)
 
 (defun map-data (function)
-  (maphash function *data*))
+  (map nil (lambda (x)
+             (funcall function
+                      x (objects-of-class x)))
+       *data*))
 
 (defun map-type (type function)
-  (maphash (lambda (key value)
-             (when (subtypep key type)
-               (map nil function value)))
-           *data*))
+  (map nil
+       (lambda (class)
+         (when (subtypep class type)
+           (map nil function
+                (objects-of-class class))))
+       *data*))
 ;;;
 
 (defvar *last-id* -1)
@@ -120,11 +125,13 @@
 
 (defvar *indexes* (make-hash-table))
 
-(defun index (id)
-  (gethash id *indexes*))
+(defun object-from-pointer (pointer)
+  (gethash (pointer-id pointer) *indexes*))
 
-(defun (setf index) (object)
+(defun index-object (object)
   (setf (gethash (id object) *indexes*) object))
+
+;;;
 
 (defun slots (class)
   (coerce (remove-if-not #'store-slot-p (class-slots class))
@@ -308,6 +315,8 @@
                          (read-n-bytes 1 stream))
     (unless (class-finalized-p class)
       (finalize-inheritance class))
+    (push class *data*)
+    (setf (objects-of-class class) nil)
     (let* ((length (read-n-bytes +sequence-length+ stream))
            (vector (make-array length)))
       (loop for i below length
@@ -370,9 +379,9 @@
           do (setf (slot-value-using-class class instance
                                            (aref slots slot-id))
                    (read-next-object stream)))
-    (setf (index) instance)
+    (index-object instance)
     (setf *last-id* (max *last-id* (id instance)))
-    (store-object instance)
+    (push instance (objects-of-class class))
     instance))
 
 ;;;
@@ -380,7 +389,7 @@
 (defun replace-pointers-in-slot (value)
   (typecase value
     (pointer
-     (index (pointer-id value)))
+     (object-from-pointer value))
     (cons
      (mapl (lambda (x)
              (setf (car x)
