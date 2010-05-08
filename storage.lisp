@@ -35,10 +35,9 @@
              (when (subtypep key type)
                (map nil function value)))
            *data*))
+;;;
 
 (defvar *last-id* -1)
-
-;;
 
 (defclass identifiable ()
   ((id :accessor id
@@ -68,6 +67,35 @@
 
 (declaim (type simple-vector *codes*))
 
+
+;; (defvar *statistics* ())
+;; (defun code-type (code)
+;;   (let* ((type (aref *codes* code))
+;;          (cons (assoc type *statistics*)))
+;;     (if cons
+;;         (incf (cdr cons))
+;;         (push (cons type 1) *statistics*))
+;;     type))
+
+(defun code-type (code)
+  (aref *codes* code))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun type-code (type)
+    (position type *codes*)))
+
+(defvar *code-functions* (make-array (length *codes*)))
+(declaim (type (simple-array function (*))))
+
+(defmacro defreader (type (stream) &body body)
+  `(setf (aref *code-functions* ,(type-code type))
+         (lambda (,stream) ,@body)))
+
+(defun call-reader (code stream)
+  (funcall (aref *code-functions* code) stream))
+
+;;; 
+
 (defconstant +sequence-length+ 2)
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defconstant +integer-length+ 3))
@@ -86,23 +114,6 @@
        (every (lambda (x)
                 (char< x +ascii-char-limit+))
               string)))
-
-;; (defvar *statistics* ())
-;; (defun code-type (code)
-;;   (let* ((type (aref *codes* code))
-;;          (cons (assoc type *statistics*)))
-;;     (if cons
-;;         (incf (cdr cons))
-;;         (push (cons type 1) *statistics*))
-;;     type))
-
-(defun code-type (code)
-  (aref *codes* code))
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun type-code (type)
-    (position type *codes*)))
-
 ;;;
 
 (defstruct pointer (id 0 :type fixnum))
@@ -142,7 +153,6 @@
 ;;;
 
 (defgeneric write-object (object stream))
-(defgeneric read-object (type stream))
 (defgeneric object-size (object))
 
 (defun measure-size ()
@@ -164,7 +174,7 @@
 (defun read-next-object (stream &optional (eof-error-p t))
   (let ((code (read-n-bytes 1 stream eof-error-p)))
     (when code
-      (read-object (code-type code) stream))))
+      (call-reader code stream))))
 
 ;;; Symbol
 
@@ -178,17 +188,9 @@
     (write-n-bytes (length name) 1 stream)
     (write-ascii-string name stream)))
 
-(defun read-symbol (keyword-p stream)
+(defreader symbol (stream)
   (intern (read-ascii-string (read-n-bytes 1 stream) stream)
-          (if keyword-p
-              :keyword
-              *package*)))
-
-(defmethod read-object ((type (eql 'keyword)) stream)
-  (read-symbol t stream))
-
-(defmethod read-object ((type (eql 'symbol)) stream)
-  (read-symbol nil stream))
+          *package*))
 
 ;;; Integer
 
@@ -200,7 +202,7 @@
   (write-n-bytes #.(type-code 'integer) 1 stream)
   (write-n-bytes object +integer-length+ stream))
 
-(defmethod read-object ((type (eql 'integer)) stream)
+(defreader integer (stream)
   (read-n-bytes +integer-length+ stream))
 
 ;;; Strings
@@ -247,10 +249,10 @@
     (read-ascii-string-optimized length string stream)
     string))
 
-(defmethod read-object ((type (eql 'ascii-string)) stream)
+(defreader ascii-string (stream)
   (read-ascii-string (read-n-bytes +sequence-length+ stream) stream))
 
-(defmethod read-object ((type (eql 'string)) stream)
+(defreader string (stream)
   (let* ((length (read-n-bytes +sequence-length+ stream))
          (string (make-string length :element-type 'character)))
     (loop for i below length
@@ -273,7 +275,7 @@
   (dolist (item list)
     (write-object item stream)))
 
-(defmethod read-object ((type (eql 'cons)) stream)
+(defreader cons (stream)
   (loop repeat (read-n-bytes +sequence-length+ stream)
         collect (read-next-object stream)))
 
@@ -300,7 +302,7 @@
           do (write-object (slot-definition-name slot)
                            stream))))
 
-(defmethod read-object ((type (eql 'storable-class)) stream)
+(defreader storable-class (stream)
   (let ((class (find-class (read-next-object stream))))
     (cache-class-with-id class
                          (read-n-bytes 1 stream))
@@ -325,7 +327,7 @@
   (write-n-bytes #.(type-code 'identifiable) 1 stream)
   (write-n-bytes (id object) +integer-length+ stream))
 
-(defmethod read-object ((type (eql 'identifiable)) stream)
+(defreader identifiable (stream)
   (make-pointer :id (read-n-bytes  +integer-length+ stream)))
 
 ;;; standard-object
@@ -344,6 +346,8 @@
                     (object-size value)))
        1))) ;; end-of-slots
 
+;;; Can't use write-object method, because it would conflict with
+;;; writing a pointer to a standard class
 (defun write-standard-object (object stream)
   (write-n-bytes #.(type-code 'standard-object) 1 stream)
   (let ((class (class-of object)))
@@ -357,7 +361,7 @@
           (write-object value stream))
     (write-n-bytes +end-of-slots+ 1 stream)))
 
-(defmethod read-object ((type (eql 'standard-object)) stream)
+(defreader standard-object (stream)
   (let* ((class (find-class-by-id (read-n-bytes 1 stream)))
          (instance (make-instance class :id 0))
          (slots (slots-to-store class)))
