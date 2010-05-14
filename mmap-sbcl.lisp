@@ -76,6 +76,16 @@
     (setf (mmap-stream-position stream)
           new-position)))
 
+(defun copy-mem (from to length)
+  (loop for i below length by sb-vm:n-word-bytes
+        do
+        #+x86
+        (setf (sb-sys:sap-ref-32 to i)
+              (sb-sys:sap-ref-32 from i))
+        #+x86-64
+        (setf (sb-sys:sap-ref-64 to i)
+              (sb-sys:sap-ref-64 from i))))
+
 (defun read-ascii-string-optimized (length string stream)
   (declare (type fixnum length))
   (sb-sys:with-pinned-objects (string)
@@ -88,14 +98,7 @@
         (error "End of file ~a" stream))
       (setf (mmap-stream-position stream)
             new-position)
-      (loop for i below length by sb-vm:n-word-bytes
-            do
-            #+x86
-            (setf (sb-sys:sap-ref-32 string-sap i)
-                  (sb-sys:sap-ref-32 mmap-sap i))
-            #+x86-64
-            (setf (sb-sys:sap-ref-64 string-sap i)
-                  (sb-sys:sap-ref-64 mmap-sap i))))
+      (copy-mem mmap-sap string-sap length))
     string))
 
 (defun write-ascii-string-optimzed (length string stream)
@@ -110,14 +113,7 @@
         (error "End of file ~a" stream))
       (setf (mmap-stream-position stream)
             new-position)
-      (loop for i below length by sb-vm:n-word-bytes
-            do
-            #+x86
-            (setf (sb-sys:sap-ref-32 mmap-sap i)
-                  (sb-sys:sap-ref-32 string-sap i))
-            #+x86-64
-            (setf (sb-sys:sap-ref-64 mmap-sap i)
-                  (sb-sys:sap-ref-64 string-sap i))))))
+      (copy-mem string-sap mmap-sap length))))
 
 (defmacro with-io-file ((stream file &key (direction :input) size)
                         &body body)
