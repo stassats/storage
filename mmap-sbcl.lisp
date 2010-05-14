@@ -35,6 +35,16 @@
                    (mmap-stream-length mmap-stream))
   (setf (mmap-stream-sap mmap-stream) (sb-sys:int-sap 0)))
 
+(declaim (inline stream-position))
+(defun stream-position (stream)
+  (mmap-stream-position stream))
+
+(declaim (inline stream-length))
+(defun stream-length (stream)
+  (mmap-stream-length stream))
+
+;;;
+
 (declaim (inline sap-ref-24))
 (defun sap-ref-24 (sap offset)
   (declare (optimize speed (safety 0))
@@ -42,16 +52,14 @@
   (mask-field (byte 24 0) (sb-sys:sap-ref-32 sap offset)))
 
 (declaim (inline read-n-bytes))
-(defun read-n-bytes (n stream &optional (eof-error-p t))
+(defun read-n-bytes (n stream)
   (declare (optimize speed)
            (fixnum n))
   (let* ((position (mmap-stream-position stream))
          (new-position (+ position n)))
     (when (> new-position
              (mmap-stream-length stream))
-      (if eof-error-p
-          (error "End of file ~a" stream)
-          (return-from read-n-bytes)))
+      (error "End of file ~a" stream))
     (setf (mmap-stream-position stream)
           new-position)
     (funcall (ecase n

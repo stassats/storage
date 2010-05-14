@@ -5,22 +5,18 @@
 
 (in-package #:movies)
 
-(define-compiler-macro read-n-bytes (&whole form bytes stream
-                                            &optional (eof-error-p t))
+(define-compiler-macro read-n-bytes (&whole form bytes stream)
   (if (eql 1 bytes)
-      `(read-byte ,stream ,eof-error-p)
+      `(read-byte ,stream)
       form))
 
 (declaim (inline read-n-bytes))
-(defun read-n-bytes (bytes stream &optional (eof-error-p t))
+(defun read-n-bytes (bytes stream)
   (declare (type (integer 1 4) bytes)
            (optimize speed))
   (loop with value of-type fixnum = 0
         for low-bit to (* 8 (1- bytes)) by 8
-        for byte = (read-byte stream eof-error-p)
-        unless byte do (if eof-error-p
-                           (error "End of file ~a" stream)
-                           (return)) 
+        for byte = (read-byte stream)
         do (setf (ldb (byte 8 low-bit) value) byte)
         finally (return value)))
 
@@ -38,3 +34,11 @@
           (progn ,@body)
        (when (eql ,direction :output)
          (finish-output ,stream)))))
+
+(declaim (inline stream-position))
+(defun stream-position (stream)
+  (file-position stream))
+
+(declaim (inline stream-length))
+(defun stream-length (stream)
+  (file-length stream))

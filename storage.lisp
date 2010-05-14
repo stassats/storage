@@ -175,10 +175,8 @@
               (dolist (object objects)
                 (write-standard-object object stream)))))
 
-(defun read-next-object (stream &optional (eof-error-p t))
-  (let ((code (read-n-bytes 1 stream eof-error-p)))
-    (when code
-      (call-reader code stream))))
+(defun read-next-object (stream)
+  (call-reader (read-n-bytes 1 stream) stream))
 
 ;;; Symbol
 
@@ -233,7 +231,7 @@
     (simple-base-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
      (write-n-bytes (length string) +sequence-length+ stream)
-     (write-ascii-string-optimzed (length string) string stream))
+     (write-ascii-string-optimized (length string) string stream))
     (ascii-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
      (write-n-bytes (length string) +sequence-length+ stream)
@@ -413,7 +411,10 @@
 (defun read-file (file)
   (let ((*package* (find-package 'movies)))
     (with-io-file (stream file)
-      (loop while (read-next-object stream nil)))))
+      (loop with length = (stream-length stream)
+            while (< (stream-position stream)
+                     length)
+            do (read-next-object stream)))))
 
 (defun clear-cashes ()
   (clear-class-cache)
