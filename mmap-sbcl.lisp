@@ -109,7 +109,7 @@
       (copy-mem mmap-sap string-sap length))
     string))
 
-(defun write-ascii-string-optimzed (length string stream)
+(defun write-ascii-string-optimized (length string stream)
   (declare (type fixnum length))
   (sb-sys:with-pinned-objects (string)
     (let* ((position (mmap-stream-position stream))
