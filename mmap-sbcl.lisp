@@ -6,7 +6,8 @@
 (in-package #:movies)
 
 (defstruct mmap-stream
-  (sap nil :type sb-sys:system-area-pointer)
+  (sap (sb-sys:int-sap 0)
+       :type sb-sys:system-area-pointer)
   (position 0 :type fixnum)
   (length 0 :type fixnum :read-only t))
 

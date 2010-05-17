@@ -90,13 +90,17 @@
 (declaim (type (simple-array function (*))))
 
 (defmacro defreader (type (stream) &body body)
-  `(setf (aref *code-functions* ,(type-code type))
-         (lambda (,stream) ,@body)))
+  (let ((name (intern (format nil "~a-~a" type '#:reader))))
+    `(progn
+       (defun ,name (,stream)
+         ,@body)
+       (setf (aref *code-functions* ,(type-code type))
+             #',name))))
 
 (defun call-reader (code stream)
   (funcall (aref *code-functions* code) stream))
 
-;;; 
+;;;
 
 (defconstant +sequence-length+ 2)
 (eval-when (:compile-toplevel :load-toplevel :execute)
