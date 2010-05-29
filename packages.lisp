@@ -61,8 +61,13 @@
    #:identifiable
    #:imdb-url
    #:last-views
-   #:print-movies))
+   #:print-movies
 
+   #:movies-by-decade
+   #:views-per-month
+   #:top-years
+   #:top-persons
+   #:top-countries))
 
 (defpackage #:iso-3166-1
   (:use #:cl)
@@ -79,14 +84,6 @@
 (defpackage #:ascii-graph
   (:use #:cl)
   (:export #:bar-graph))
-
-(defpackage #:graphs
-  (:use #:cl #:movies)
-  (:export #:movies-by-decade
-           #:views-per-month
-           #:top-years
-           #:top-persons
-           #:top-countries))
 
 (defpackage #:freebase
   (:use #:cl))
