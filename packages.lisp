@@ -1,6 +1,6 @@
 ;;; -*- Mode: Lisp -*-
 
-(defpackage #:movies
+(defpackage #:storage
   (:use #:closer-common-lisp)
   (:shadow #:count #:delete)
   (:export
@@ -10,7 +10,13 @@
    #:objects-of-type
    #:map-type
 
-   #:*data-file*
+   #:storable-class
+   #:identifiable))
+
+(defpackage #:movies
+  (:use #:closer-common-lisp)
+  (:export
+
 
    #:person
    #:male
@@ -57,6 +63,7 @@
    #:last-views
    #:print-movies))
 
+
 (defpackage #:iso-3166-1
   (:use #:cl)
   (:export
@@ -75,7 +82,6 @@
 
 (defpackage #:graphs
   (:use #:cl #:movies)
-  (:shadowing-import-from #:movies #:count #:delete)
   (:export #:movies-by-decade
            #:views-per-month
            #:top-years

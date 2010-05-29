@@ -3,10 +3,13 @@
 ;;; This software is in the public domain and is
 ;;; provided with absolutely no warranty.
 
-(in-package #:movies)
+(in-package #:storage)
 
-(defvar *data-file* (merge-pathnames "doc/movies.db" (user-homedir-pathname)))
-(defvar *data* nil)
+(defvar *storage* nil)
+
+(defmacro with-storage (class-name &body body)
+  `(let ((*storage* (find-class ,class-name)))
+     ,@body))
 
 (defun objects-of-type (type)
   (objects-of-class (find-class type)))
@@ -18,7 +21,7 @@
   (push object (objects-of-class (class-of object))))
 
 (defun clear-data-cache ()
-  (setf *data* nil))
+  (setf (storage-data *storage*) nil))
 
 (defun delete (object)
   (setf (objects-of-class (class-of object))
@@ -28,12 +31,12 @@
   t)
 
 (defun map-data (function)
-  (dolist (class *data*)
+  (dolist (class (storage-data *storage*))
     (funcall function
              class (objects-of-class class))))
 
 (defun map-type (type function)
-  (dolist (class *data*)
+  (dolist (class (storage-data *storage*))
     (when (subtypep class type)
       (map nil function
            (objects-of-class class)))))
@@ -185,18 +188,22 @@
 ;;; Symbol
 
 (defmethod object-size ((object symbol))
-  (+ 2 ;; type + length
+  (+ 3 ;; type + package name length + symbol length
+     (length (package-name (symbol-package object)))
      (length (symbol-name object))))
 
 (defmethod write-object ((object symbol) stream)
   (write-n-bytes #.(type-code 'symbol) 1 stream)
-  (let ((name (symbol-name object)))
+  (let ((name (symbol-name object))
+        (package (package-name (symbol-package object))))
     (write-n-bytes (length name) 1 stream)
-    (write-ascii-string name stream)))
+    (write-ascii-string name stream)
+    (write-n-bytes (length package) 1 stream)
+    (write-ascii-string package stream)))
 
 (defreader symbol (stream)
   (intern (read-ascii-string (read-n-bytes 1 stream) stream)
-          *package*))
+          (read-ascii-string (read-n-bytes 1 stream) stream)))
 
 ;;; Integer
 
@@ -246,6 +253,7 @@
      (write-multibyte-string string stream))))
 
 (defun read-ascii-string (length stream)
+  
   (let ((string (make-string length :element-type 'base-char)))
     #-sbcl
     (loop for i below length
@@ -314,7 +322,7 @@
                          (read-n-bytes 1 stream))
     (unless (class-finalized-p class)
       (finalize-inheritance class))
-    (push class *data*)
+    (push class (storage-data class))
     (setf (objects-of-class class) nil)
     (let* ((length (read-n-bytes +sequence-length+ stream))
            (vector (make-array length)))
@@ -413,31 +421,36 @@
 ;;;
 
 (defun read-file (file)
-  (let ((*package* (find-package 'movies)))
-    (with-io-file (stream file)
-      (loop with length = (stream-length stream)
-            while (< (stream-position stream)
-                     length)
-            do (read-next-object stream)))))
+  (with-io-file (stream file)
+    (loop with length = (stream-length stream)
+          while (< (stream-position stream)
+                   length)
+          do (read-next-object stream))))
 
 (defun clear-cashes ()
   (clear-class-cache)
   (clear-data-cache)
   (clrhash *indexes*))
 
-(defun load-data (&optional (file *data-file*))
-  (clear-cashes)
-  (read-file file)
-  (map-data (lambda (type objects)
-              (declare (ignore type))
-              (dolist (object objects)
-                (replace-pointers object)
-                (interlink-objects object)))))
+(defun load-data (storage-name &optional file)
+  (with-storage storage-name
+    (when file
+      (setf (storage-file *storage*)
+            file))
+    (clear-cashes)
+    (read-file (storage-file *storage*))
+    (map-data (lambda (type objects)
+                (declare (ignore type))
+                (dolist (object objects)
+                  (replace-pointers object)
+                  (interlink-objects object))))))
 
-(defun save-data (&optional (file *data-file*))
-  (with-io-file (stream file :direction :output
-                        :size (measure-size))
-    (dump-data stream)))
+(defun save-data (storage-name &optional file)
+  (with-storage storage-name
+   (with-io-file (stream (or file (storage-file *storage*))
+                         :direction :output
+                         :size (measure-size))
+     (dump-data stream))))
 
 ;;; Data manipulations
 

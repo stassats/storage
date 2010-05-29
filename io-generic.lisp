@@ -3,7 +3,7 @@
 ;;; This software is in the public domain and is
 ;;; provided with absolutely no warranty.
 
-(in-package #:movies)
+(in-package #:storage)
 
 (define-compiler-macro read-n-bytes (&whole form bytes stream)
   (if (eql 1 bytes)

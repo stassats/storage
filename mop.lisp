@@ -3,7 +3,7 @@
 ;;; This software is in the public domain and is
 ;;; provided with absolutely no warranty.
 
-(in-package #:movies)
+(in-package #:storage)
 
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil
@@ -11,7 +11,13 @@
    (class-id :initform 0
              :accessor class-id)
    (objects :initform nil
-            :accessor objects-of-class)))
+            :accessor objects-of-class)
+   (data :initform nil
+         :accessor storage-data
+         :allocation :class)
+   (file :initform nil
+         :accessor storage-file
+         :allocation :class)))
 
 (defmethod validate-superclass
     ((class standard-class)

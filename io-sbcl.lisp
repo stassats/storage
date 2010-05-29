@@ -3,7 +3,7 @@
 ;;; This software is in the public domain and is
 ;;; provided with absolutely no warranty.
 
-(in-package #:movies)
+(in-package #:storage)
 
 (defstruct mmap-stream
   (sap (sb-sys:int-sap 0)
