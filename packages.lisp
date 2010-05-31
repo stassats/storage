@@ -4,6 +4,7 @@
   (:use #:closer-common-lisp)
   (:shadow #:count #:delete)
   (:export
+   #:id
    #:add
    #:where
    #:delete
@@ -11,12 +12,16 @@
    #:map-type
 
    #:storable-class
-   #:identifiable))
+   #:identifiable
+   #:lookup
+   #:interlink-objects
+   #:load-data
+   #:save-data
+   #:with-storage))
 
 (defpackage #:movies
   (:use #:closer-common-lisp)
   (:export
-
 
    #:person
    #:male
@@ -49,12 +54,6 @@
    #:born
    #:imdb-id
 
-   #:save-data
-   #:load-data
-
-   #:lookup
-   #:count
-   #:id
    #:format-date
    #:month
    #:sort-hash-table-to-alist
@@ -67,7 +66,9 @@
    #:views-per-month
    #:top-years
    #:top-persons
-   #:top-countries))
+   #:top-countries
+   #:with-movies
+   #:movie-storage))
 
 (defpackage #:iso-3166-1
   (:use #:cl)

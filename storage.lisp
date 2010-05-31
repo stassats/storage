@@ -72,18 +72,14 @@
 
 (declaim (type simple-vector *codes*))
 
-
-;; (defvar *statistics* ())
-;; (defun code-type (code)
-;;   (let* ((type (aref *codes* code))
-;;          (cons (assoc type *statistics*)))
-;;     (if cons
-;;         (incf (cdr cons))
-;;         (push (cons type 1) *statistics*))
-;;     type))
-
-(defun code-type (code)
-  (aref *codes* code))
+(defvar *statistics* ())
+(defun collect-stats (code)
+  (let* ((type (aref *codes* code))
+         (cons (assoc type *statistics*)))
+    (if cons
+        (incf (cdr cons))
+        (push (cons type 1) *statistics*))
+    type))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun type-code (type)
@@ -101,6 +97,7 @@
              #',name))))
 
 (defun call-reader (code stream)
+  ;; (collect-stats code)
   (funcall (aref *code-functions* code) stream))
 
 ;;;
