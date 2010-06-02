@@ -47,7 +47,8 @@
 (defclass identifiable ()
   ((id :accessor id
        :initarg :id
-       :initform nil))
+       :initform nil
+       :storep nil))
   (:metaclass storable-class))
 
 (defmethod update-instance-for-different-class
@@ -122,12 +123,7 @@
               string)))
 ;;;
 
-(defstruct pointer (id 0 :type fixnum))
-
 (defvar *indexes* (make-hash-table))
-
-(defun object-from-pointer (pointer)
-  (gethash (pointer-id pointer) *indexes*))
 
 (defun index-object (object)
   (setf (gethash (id object) *indexes*) object))
@@ -175,7 +171,10 @@
 (defun dump-data (stream)
   (clear-class-cache)
   (map-data (lambda (class objects)
-              (write-object class stream)
+              (declare (ignore objects))
+              (write-object class stream)))
+  (map-data (lambda (class objects)
+              (declare (ignore class))
               (dolist (object objects)
                 (write-standard-object object stream)))))
 
@@ -334,14 +333,21 @@
 ;;; identifiable
 
 (defmethod object-size ((object identifiable))
-  (+ 1 +integer-length+))
+  (+ 2 ;; type + class id
+     +integer-length+))
 
 (defmethod write-object ((object identifiable) stream)
   (write-n-bytes #.(type-code 'identifiable) 1 stream)
-  (write-n-bytes (id object) +integer-length+ stream))
+  (write-n-bytes (id object) +integer-length+ stream)
+  (write-n-bytes (class-id (class-of object)) 1 stream))
 
 (defreader identifiable (stream)
-  (make-pointer :id (read-n-bytes  +integer-length+ stream)))
+  (let ((id (read-n-bytes +integer-length+ stream))
+        (class-id (read-n-bytes 1 stream)))
+    (or (gethash id *indexes*)
+        (setf (gethash id *indexes*)
+              (make-instance (find-class-by-id class-id)
+                             :id id)))))
 
 ;;; standard-object
 
@@ -351,6 +357,7 @@
     (declare (type (simple-array t (*)) slots))
     (+ 1 ;; data type
        1 ;; class id
+       +integer-length+ ;; id
        (loop for slot-def across slots
              for i from 0
              for value = (slot-value-using-class class object slot-def)
@@ -360,11 +367,12 @@
        1))) ;; end-of-slots
 
 ;;; Can't use write-object method, because it would conflict with
-;;; writing a pointer to a standard class
+;;; writing a pointer to a standard object
 (defun write-standard-object (object stream)
   (write-n-bytes #.(type-code 'standard-object) 1 stream)
   (let ((class (class-of object)))
     (write-n-bytes (class-id class) 1 stream)
+    (write-n-bytes (id object) +integer-length+ stream)
     (loop for slot-def across (slots-to-store class)
           for i from 0
           for value = (slot-value-using-class class object slot-def)
@@ -374,41 +382,29 @@
           (write-object value stream))
     (write-n-bytes +end-of-slots+ 1 stream)))
 
+(declaim (inline get-instance))
+(defun get-instance (id class)
+  (let ((dummy (gethash id *indexes*)))
+    (if dummy
+        dummy
+        (setf (gethash id *indexes*)
+              (make-instance class :id id)))))
+
 (defreader standard-object (stream)
   (let* ((class (find-class-by-id (read-n-bytes 1 stream)))
-         (instance (make-instance class :id 0))
+         (id (read-n-bytes +integer-length+ stream))
+         (instance (get-instance id class))
          (slots (slots-to-store class)))
     (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end-of-slots+)
           do (setf (slot-value-using-class class instance
                                            (aref slots slot-id))
                    (read-next-object stream)))
-    (index-object instance)
     (setf *last-id* (max *last-id* (id instance)))
     (push instance (objects-of-class class))
     instance))
 
 ;;;
-
-(defun replace-pointers-in-slot (value)
-  (flet ((replace-recursively (x)
-           (setf (car x)
-                 (replace-pointers-in-slot (car x)))))
-    (typecase value
-      (pointer
-       (object-from-pointer value))
-      (cons
-       (loop for x on value
-             do (replace-recursively x))
-       value)
-      (t value))))
-
-(defun replace-pointers (object)
-  (loop with class = (class-of object)
-        for slot across (slots-to-store class)
-        do (setf (slot-value-using-class class object slot)
-                 (replace-pointers-in-slot
-                  (slot-value-using-class class object slot)))))
 
 (defgeneric interlink-objects (object))
 
@@ -438,9 +434,7 @@
     (read-file (storage-file *storage*))
     (map-data (lambda (type objects)
                 (declare (ignore type))
-                (dolist (object objects)
-                  (replace-pointers object)
-                  (interlink-objects object))))))
+                (mapc #'interlink-objects objects)))))
 
 (defun save-data (storage-name &optional file)
   (with-storage storage-name
