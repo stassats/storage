@@ -292,30 +292,33 @@
 ;;; storable-class
 
 (defmethod object-size ((class storable-class))
-  (+ 1 ;;type
-     1 ;; class-id
+  (+ 1 ;; type
      (object-size (class-name class))
-     +sequence-length+ ;; length of list
-     (let ((slots (slots class)))
-       (setf (slots-to-store class) slots)
-       (reduce #'+ slots
-               :key (lambda (x)
-                      (object-size (slot-definition-name x)))))))
+     1                 ;; class-id
+     +sequence-length+ ;; list length
+     (reduce #'+ (class-slots class)
+             :key (lambda (x)
+                    (if (store-slot-p x)
+                        (object-size (slot-definition-name x))
+                        0)))))
 
 (defmethod write-object ((class storable-class) stream)
+  (assign-id-to-class class)
   (write-n-bytes #.(type-code 'storable-class) 1 stream)
   (write-object (class-name class) stream)
   (write-n-bytes (class-id class) 1 stream)
-  (let ((slots (slots-to-store class)))
+  (let ((slots (slots class)))
+    (setf (slots-to-store class) slots)
     (write-n-bytes (length slots) +sequence-length+ stream)
     (loop for slot across slots
           do (write-object (slot-definition-name slot)
                            stream))))
 
 (defreader storable-class (stream)
-  (let ((class (find-class (read-next-object stream))))
-    (cache-class-with-id class
-                         (read-n-bytes 1 stream))
+  (let ((class (find-class (read-next-object stream)))
+        (id (read-n-bytes 1 stream)))
+    (cache-class-with-id class id)
+    (setf (class-id class) id)
     (unless (class-finalized-p class)
       (finalize-inheritance class))
     (push class (storage-data class))
