@@ -448,17 +448,21 @@
 
 ;;; Data manipulations
 
-(defgeneric add (type &rest args &key &allow-other-keys))
+(defgeneric add (class &rest args &key &allow-other-keys))
 
-(defmethod add (type &rest args &key &allow-other-keys)
-  (let ((object (apply #'make-instance type args)))
+(defmethod add (class &rest args &key &allow-other-keys)
+  (let* ((class (if (classp class)
+                    class
+                    (find-class class)))
+         (object (apply #'make-instance class args)))
+    (pushnew class (storage-data class) :test #'eq)
     (store-object object)
     object))
 
 (defun where (&rest clauses)
   (let ((slots (loop for slot in clauses by #'cddr
                      collect (intern (symbol-name slot)
-                                     'movies)))
+                                     #.*package*)))
         (values (loop for value in (cdr clauses) by #'cddr collect value)))
     (compile
      nil
