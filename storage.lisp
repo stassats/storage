@@ -355,18 +355,17 @@
 ;;; standard-object
 
 (defun standard-object-size (object)
-  (let* ((class (class-of object))
-         (slots (slots-to-store class)))
-    (declare (type (simple-array t (*)) slots))
-    (+ 1 ;; data type
-       1 ;; class id
+  (let* ((class (class-of object)))
+    (+ 1                ;; data type
+       1                ;; class id
        +integer-length+ ;; id
-       (loop for slot-def across slots
-             for i from 0
-             for value = (slot-value-using-class class object slot-def)
-             unless (eql value (slot-definition-initform slot-def))
-             sum (+ 1 ;; slot id
-                    (object-size value)))
+       (loop for slot-def in (class-slots class)
+             when (store-slot-p slot-def)
+             sum (let ((value (slot-value-using-class class object slot-def)))
+                   (if (eql value (slot-definition-initform slot-def))
+                       0
+                       (+ 1 ;; slot id
+                          (object-size value)))))
        1))) ;; end-of-slots
 
 ;;; Can't use write-object method, because it would conflict with
