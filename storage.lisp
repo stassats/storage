@@ -430,21 +430,19 @@
 
 (defun load-data (storage-name &optional file)
   (with-storage storage-name
-    (when file
-      (setf (storage-file *storage*)
-            file))
     (clear-cashes)
-    (read-file (storage-file *storage*))
+    (read-file file)
     (map-data (lambda (type objects)
                 (declare (ignore type))
                 (mapc #'interlink-objects objects)))))
 
 (defun save-data (storage-name &optional file)
   (with-storage storage-name
-   (with-io-file (stream (or file (storage-file *storage*))
-                         :direction :output
-                         :size (measure-size))
-     (dump-data stream))))
+    (when (storage-data *storage*)
+      (with-io-file (stream (or file (storage-file *storage*))
+                            :direction :output
+                            :size (measure-size))
+        (dump-data stream)))))
 
 ;;; Data manipulations
 
