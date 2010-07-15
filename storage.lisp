@@ -18,7 +18,8 @@
   (setf (objects-of-class (find-class type)) value))
 
 (defun store-object (object)
-  (push object (objects-of-class (class-of object))))
+  (push object (objects-of-class (class-of object)))
+  t)
 
 (defun clear-data-cache ()
   (setf (storage-data *storage*) nil))
@@ -430,7 +431,7 @@
 (defun load-data (storage-name &optional file)
   (with-storage storage-name
     (clear-cashes)
-    (read-file file)
+    (read-file (or file (storage-file *storage*)))
     (map-data (lambda (type objects)
                 (declare (ignore type))
                 (mapc #'interlink-objects objects)))))
@@ -458,8 +459,7 @@
 
 (defun where (&rest clauses)
   (let ((slots (loop for slot in clauses by #'cddr
-                     collect (intern (symbol-name slot)
-                                     #.*package*)))
+                     collect (intern (symbol-name slot))))
         (values (loop for value in (cdr clauses) by #'cddr collect value)))
     (compile
      nil
