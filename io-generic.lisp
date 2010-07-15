@@ -35,10 +35,7 @@
        (when (eql ,direction :output)
          (finish-output ,stream)))))
 
-(declaim (inline stream-position))
-(defun stream-position (stream)
-  (file-position stream))
-
-(declaim (inline stream-length))
-(defun stream-length (stream)
-  (file-length stream))
+(declaim (inline stream-end-of-file-p))
+(defun stream-end-of-file-p (stream)
+  (>= (file-position stream)
+      (file-length stream)))

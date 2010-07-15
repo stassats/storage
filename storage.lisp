@@ -250,7 +250,6 @@
      (write-multibyte-string string stream))))
 
 (defun read-ascii-string (length stream)
-  
   (let ((string (make-string length :element-type 'base-char)))
     #-sbcl
     (loop for i below length
@@ -418,9 +417,7 @@
 
 (defun read-file (file)
   (with-io-file (stream file)
-    (loop with length = (stream-length stream)
-          while (< (stream-position stream)
-                   length)
+    (loop until (stream-end-of-file-p stream)
           do (read-next-object stream))))
 
 (defun clear-cashes ()

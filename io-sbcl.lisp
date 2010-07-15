@@ -5,11 +5,14 @@
 
 (in-package #:storage)
 
+(deftype word ()
+  'sb-vm:word)
+
 (defstruct mmap-stream
-  (sap (sb-sys:int-sap 0)
-       :type sb-sys:system-area-pointer)
-  (position 0 :type fixnum)
-  (length 0 :type fixnum :read-only t))
+  (beginning)
+  (length 0 :type word :read-only t)
+  (sap 0 :type word)
+  (end 0 :type word :read-only t))
 
 (defun scale-file (stream size)
   (file-position stream (1- size))
@@ -20,29 +23,30 @@
              &key direction size)
   (when (eql direction :output)
     (scale-file file-stream size))
-  (make-mmap-stream
-   :sap (sb-posix:mmap nil
-                       (or size (file-length file-stream))
-                       (ecase direction
-                         (:input sb-posix:prot-read)
-                         (:output sb-posix:prot-write))
-                       sb-posix:map-shared
-                       (sb-sys:fd-stream-fd file-stream)
-                       0)
-   :length (or size (file-length file-stream))))
+  (let* ((sap (sb-posix:mmap nil
+                             (or size (file-length file-stream))
+                             (ecase direction
+                               (:input sb-posix:prot-read)
+                               (:output sb-posix:prot-write))
+                             sb-posix:map-shared
+                             (sb-sys:fd-stream-fd file-stream)
+                             0))
+         (sap-int (sb-sys:sap-int sap)))
+    (make-mmap-stream
+     :beginning sap
+     :sap sap-int
+     :length (or size (file-length file-stream))
+     :end (+ sap-int (or size (file-length file-stream))))))
 
 (defun munmap (mmap-stream)
-  (sb-posix:munmap (mmap-stream-sap mmap-stream)
+  (sb-posix:munmap (mmap-stream-beginning mmap-stream)
                    (mmap-stream-length mmap-stream))
-  (setf (mmap-stream-sap mmap-stream) (sb-sys:int-sap 0)))
+  (setf (mmap-stream-sap mmap-stream) 0))
 
-(declaim (inline stream-position))
-(defun stream-position (stream)
-  (mmap-stream-position stream))
-
-(declaim (inline stream-length))
-(defun stream-length (stream)
-  (mmap-stream-length stream))
+(declaim (inline stream-end-of-file-p))
+(defun stream-end-of-file-p (stream)
+  (>= (mmap-stream-sap stream)
+      (mmap-stream-end stream)))
 
 ;;;
 
@@ -54,19 +58,20 @@
 
 (declaim (inline advance-stream))
 (defun advance-stream (n stream)
-  (let* ((position (mmap-stream-position stream))
-         (new-position (+ position n)))
+  (declare (optimize (space 0))
+           (type word n))
+  (let* ((sap (mmap-stream-sap stream))
+         (new-position (sb-ext:truly-the word (+ sap n))))
     (when (> new-position
-             (mmap-stream-length stream))
+             (mmap-stream-end stream))
       (error "End of file ~a" stream))
-    (setf (mmap-stream-position stream)
-          new-position)
-    (sb-sys:sap+ (mmap-stream-sap stream) position)))
+    (setf (mmap-stream-sap stream) new-position)
+    (sb-sys:int-sap sap)))
 
 (declaim (inline read-n-bytes))
 (defun read-n-bytes (n stream)
-  (declare (optimize speed)
-           (fixnum n))
+  (declare (optimize (speed 3))
+           (type (integer 1 4) n))
   (funcall (ecase n
              (1 #'sb-sys:sap-ref-8)
              (2 #'sb-sys:sap-ref-16)
