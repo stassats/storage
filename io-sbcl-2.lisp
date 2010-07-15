@@ -14,6 +14,12 @@
    :fd (sb-sys:fd-stream-fd file-stream)
    :left (file-length file-stream)))
 
+(defun close-file (stream)
+  (sb-alien:alien-funcall
+   (sb-alien:extern-alien "free"
+                          (function (values) sb-alien:int))
+   (st-stream-buffer-start stream)))
+
 (declaim (notinline stream-position))
 (defun stream-position (stream)
   (st-stream-position stream))
@@ -122,6 +128,7 @@
        (let ((,stream (open-file ,fd-stream :direction ,direction :size ,size)))
          (unwind-protect
               (progn ,@body)
+           (close-file ,stream)
            (when (eql ,direction :output)
              (sb-posix:fdatasync
               (sb-sys:fd-stream-fd ,fd-stream))))))))
