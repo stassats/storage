@@ -7,7 +7,7 @@
 
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil
-                   :accessor slots-to-store)
+                   :reader slots-to-store)
    (class-id :initform 0
              :accessor class-id)
    (objects :initform nil
@@ -18,6 +18,9 @@
    (file :initform nil
          :accessor storage-file
          :allocation :class)))
+
+(declaim (ftype (function (t) simple-vector)
+                slots-to-store))
 
 (defmethod validate-superclass
     ((class standard-class)
@@ -63,7 +66,7 @@
 
 (defmethod compute-slots :around ((class storable-class))
   (let ((slots (call-next-method)))
-    (setf (slots-to-store class)
+    (setf (slot-value class 'slots-to-store)
           (coerce (remove-if-not #'store-slot-p slots)
                   'simple-vector))
     slots))
