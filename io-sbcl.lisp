@@ -90,13 +90,8 @@
 (declaim (inline copy-mem))
 (defun copy-mem (from to length)
   (loop for i below length by sb-vm:n-word-bytes
-        do
-        #+x86
-        (setf (sb-sys:sap-ref-32 to i)
-              (sb-sys:sap-ref-32 from i))
-        #+x86-64
-        (setf (sb-sys:sap-ref-64 to i)
-              (sb-sys:sap-ref-64 from i))))
+        do (setf (sb-sys:sap-ref-word to i)
+                 (sb-sys:sap-ref-word from i))))
 
 (defun read-ascii-string-optimized (length string stream)
   (declare (type fixnum length))

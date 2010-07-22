@@ -131,10 +131,6 @@
 
 ;;;
 
-(defun slots (class)
-  (coerce (remove-if-not #'store-slot-p (class-slots class))
-          'simple-vector))
-
 (defun slot-effective-definition (class slot-name)
   (find slot-name (class-slots class) :key #'slot-definition-name))
 
@@ -296,19 +292,16 @@
      (object-size (class-name class))
      1                 ;; class-id
      +sequence-length+ ;; list length
-     (reduce #'+ (class-slots class)
+     (reduce #'+ (slots-to-store class)
              :key (lambda (x)
-                    (if (store-slot-p x)
-                        (object-size (slot-definition-name x))
-                        0)))))
+                    (object-size (slot-definition-name x))))))
 
 (defmethod write-object ((class storable-class) stream)
   (assign-id-to-class class)
   (write-n-bytes #.(type-code 'storable-class) 1 stream)
   (write-object (class-name class) stream)
   (write-n-bytes (class-id class) 1 stream)
-  (let ((slots (slots class)))
-    (setf (slots-to-store class) slots)
+  (let ((slots (slots-to-store class)))
     (write-n-bytes (length slots) +sequence-length+ stream)
     (loop for slot across slots
           do (write-object (slot-definition-name slot)
@@ -329,8 +322,7 @@
             do (setf (aref vector i)
                      (slot-effective-definition class
                                                 (read-next-object stream))))
-      (setf (slots-to-store class)
-            vector))
+      (setf (slots-to-store class) vector))
     class))
 
 ;;; identifiable

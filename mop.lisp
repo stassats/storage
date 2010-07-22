@@ -60,3 +60,10 @@
     (setf (slot-value effective-definition 'storep)
           (store-slot-p (car direct-definitions)))
     effective-definition))
+
+(defmethod compute-slots :around ((class storable-class))
+  (let ((slots (call-next-method)))
+    (setf (slots-to-store class)
+          (coerce (remove-if-not #'store-slot-p slots)
+                  'simple-vector))
+    slots))
