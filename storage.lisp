@@ -351,8 +351,7 @@
     (+ 1                ;; data type
        1                ;; class id
        +integer-length+ ;; id
-       (loop for slot-def in (class-slots class)
-             when (store-slot-p slot-def)
+       (loop for slot-def across (slots-to-store class)
              sum (let ((value (slot-value-using-class class object slot-def)))
                    (if (eql value (slot-definition-initform slot-def))
                        0
