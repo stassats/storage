@@ -7,7 +7,7 @@
 
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil
-                   :reader slots-to-store)
+                   :accessor slots-to-store)
    (class-id :initform 0
              :accessor class-id)
    (objects :initform nil
@@ -59,6 +59,7 @@
     ((class storable-class)
      slot-name
      direct-definitions)
+  (declare (ignore slot-name))
   (let ((effective-definition (call-next-method)))
     (setf (slot-value effective-definition 'storep)
           (store-slot-p (car direct-definitions)))
