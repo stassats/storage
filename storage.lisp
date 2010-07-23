@@ -134,23 +134,6 @@
 (defun slot-effective-definition (class slot-name)
   (find slot-name (class-slots class) :key #'slot-definition-name))
 
-(defvar *class-cache* (make-array 20 :initial-element nil))
-(defvar *class-last-id* 0)
-
-(defun clear-class-cache ()
-  (fill *class-cache* nil)
-  (setf *class-last-id* 0))
-
-(defun assign-id-to-class (class)
-  (prog1 (setf (class-id class) *class-last-id*)
-    (incf *class-last-id*)))
-
-(defun cache-class-with-id (class id)
-  (setf (aref *class-cache* id) class))
-
-(defun find-class-by-id (id)
-  (aref *class-cache* id))
-
 ;;;
 
 (defgeneric write-object (object stream))
@@ -166,7 +149,6 @@
     result))
 
 (defun dump-data (stream)
-  (clear-class-cache)
   (map-data (lambda (class objects)
               (declare (ignore objects))
               (write-object class stream)))
@@ -297,7 +279,6 @@
                     (object-size (slot-definition-name x))))))
 
 (defmethod write-object ((class storable-class) stream)
-  (assign-id-to-class class)
   (write-n-bytes #.(type-code 'storable-class) 1 stream)
   (write-object (class-name class) stream)
   (write-n-bytes (class-id class) 1 stream)
@@ -311,7 +292,6 @@
   (let ((class (find-class (read-next-object stream)))
         (id (read-n-bytes 1 stream)))
     (cache-class-with-id class id)
-    (setf (class-id class) id)
     (unless (class-finalized-p class)
       (finalize-inheritance class))
     (push class (storage-data class))
@@ -377,11 +357,9 @@
 
 (declaim (inline get-instance))
 (defun get-instance (id class)
-  (let ((dummy (gethash id *indexes*)))
-    (if dummy
-        dummy
-        (setf (gethash id *indexes*)
-              (make-instance class :id id)))))
+  (or (gethash id *indexes*)
+      (setf (gethash id *indexes*)
+            (make-instance class :id id))))
 
 (defreader standard-object (stream)
   (let* ((class (find-class-by-id (read-n-bytes 1 stream)))
@@ -412,7 +390,6 @@
           do (read-next-object stream))))
 
 (defun clear-cashes ()
-  (clear-class-cache)
   (clear-data-cache)
   (clrhash *indexes*))
 

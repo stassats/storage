@@ -22,6 +22,32 @@
 (declaim (ftype (function (t) simple-vector)
                 slots-to-store))
 
+(defvar *class-cache* #())
+
+(defun grow-cache ()
+  (let* ((next-position (length *class-cache*))
+         (new-cache (make-array (+ next-position 20) :initial-element nil)))
+    (replace new-cache *class-cache*)
+    (setf *class-cache* new-cache)
+    next-position))
+
+(defun assign-id-to-class (class)
+  (loop for i from 0
+        for cached-class across *class-cache*
+        unless cached-class
+        return (cache-class-with-id class i)
+        when (eq cached-class class)
+        return (setf (class-id class) i)
+        finally (cache-class-with-id class (grow-cache)))
+  t)
+
+(defun cache-class-with-id (class id)
+  (setf (class-id class) id)
+  (setf (aref *class-cache* id) class))
+
+(defun find-class-by-id (id)
+  (aref *class-cache* id))
+
 (defmethod validate-superclass
     ((class standard-class)
      (superclass storable-class))
@@ -50,9 +76,7 @@
   (declare (ignore initargs))
   (find-class 'storable-direct-slot-definition))
 
-(defmethod effective-slot-definition-class ((class storable-class)
-                                            &rest initargs)
-  (declare (ignore initargs))
+(defmethod effective-slot-definition-class ((class storable-class) &key)
   (find-class 'storable-effective-slot-definition))
 
 (defmethod compute-effective-slot-definition
@@ -71,3 +95,6 @@
           (coerce (remove-if-not #'store-slot-p slots)
                   'simple-vector))
     slots))
+
+(defmethod initialize-instance :after ((class storable-class) &key)
+  (assign-id-to-class class))
