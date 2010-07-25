@@ -17,5 +17,6 @@
    #:interlink-objects
    #:load-data
    #:save-data
-   #:with-storage))
- 
+   #:with-storage
+   #:storage))
+

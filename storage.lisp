@@ -7,10 +7,6 @@
 
 (defvar *storage* nil)
 
-(defmacro with-storage (class-name &body body)
-  `(let ((*storage* (find-class ,class-name)))
-     ,@body))
-
 (defun objects-of-type (type)
   (objects-of-class (find-class type)))
 
@@ -41,27 +37,11 @@
     (when (subtypep class type)
       (map nil function
            (objects-of-class class)))))
-;;;
-
-(defvar *last-id* -1)
-
-(defclass identifiable ()
-  ((id :accessor id
-       :initarg :id
-       :initform nil
-       :storep nil))
-  (:metaclass storable-class))
 
 (defmethod update-instance-for-different-class
     :after ((previous identifiable) (current identifiable) &key)
   (delete previous)
   (store-object current))
-
-(defmethod initialize-instance :after ((object identifiable)
-                                       &key id)
-  (if (integerp id)
-      (setf *last-id* (max *last-id* id))
-      (setf (id object) (incf *last-id*))))
 
 ;;;
 
@@ -294,7 +274,7 @@
     (cache-class-with-id class id)
     (unless (class-finalized-p class)
       (finalize-inheritance class))
-    (push class (storage-data class))
+    (push class (storage-data (class-storage class)))
     (setf (objects-of-class class) nil)
     (let* ((length (read-n-bytes +sequence-length+ stream))
            (vector (make-array length)))
@@ -393,16 +373,16 @@
   (clear-data-cache)
   (clrhash *indexes*))
 
-(defun load-data (storage-name &optional file)
-  (with-storage storage-name
+(defun load-data (storage &optional file)
+  (let ((*storage* storage))
     (clear-cashes)
     (read-file (or file (storage-file *storage*)))
     (map-data (lambda (type objects)
                 (declare (ignore type))
                 (mapc #'interlink-objects objects)))))
 
-(defun save-data (storage-name &optional file)
-  (with-storage storage-name
+(defun save-data (storage &optional file)
+  (let ((*storage* storage))
     (when (storage-data *storage*)
       (with-io-file (stream (or file (storage-file *storage*))
                             :direction :output
@@ -413,13 +393,14 @@
 
 (defgeneric add (class &rest args &key &allow-other-keys))
 
+(defmethod add ((class symbol) &rest args)
+  (apply #'add (find-class class) args))
+
 (defmethod add (class &rest args &key &allow-other-keys)
-  (let* ((class (if (classp class)
-                    class
-                    (find-class class)))
-         (object (apply #'make-instance class args)))
+  (let ((object (apply #'make-instance class args)))
     (pushnew class (storage-data class) :test #'eq)
     (store-object object)
+    (storage:interlink-objects object)
     object))
 
 (defun where (&rest clauses)

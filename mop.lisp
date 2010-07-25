@@ -5,6 +5,13 @@
 
 (in-package #:storage)
 
+(defclass storage ()
+  ((data :initform nil
+         :accessor storage-data)
+   (file :initform nil
+         :initarg :file
+         :accessor storage-file)))
+
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil
                    :accessor slots-to-store)
@@ -12,15 +19,30 @@
              :accessor class-id)
    (objects :initform nil
             :accessor objects-of-class)
-   (data :initform nil
-         :accessor storage-data
-         :allocation :class)
-   (file :initform nil
-         :accessor storage-file
-         :allocation :class)))
+   (storage :initform nil
+            :initarg :storage
+            :accessor class-storage)))
 
 (declaim (ftype (function (t) simple-vector)
                 slots-to-store))
+
+(defun initialize-storable-class (next-method class
+                                  &rest args &key direct-superclasses &allow-other-keys)
+  (apply next-method class
+         (if direct-superclasses
+             args
+             (list* :direct-superclasses (list (find-class 'identifiable))
+                    args))))
+
+(defmethod initialize-instance ((class storable-class)
+                                &rest args)
+  (apply #'initialize-storable-class #'call-next-method class args))
+
+(defmethod reinitialize-instance ((class storable-class)
+                                  &rest args)
+  (apply #'initialize-storable-class #'call-next-method class args))
+
+;;;
 
 (defvar *class-cache* #())
 
@@ -98,3 +120,20 @@
 
 (defmethod initialize-instance :after ((class storable-class) &key)
   (assign-id-to-class class))
+
+;;;
+
+(defvar *last-id* -1)
+
+(defclass identifiable (standard-object)
+  ((id :accessor id
+       :initarg :id
+       :initform nil
+       :storep nil))
+  (:metaclass storable-class))
+
+(defmethod initialize-instance :after ((object identifiable)
+                                       &key id)
+  (if (integerp id)
+      (setf *last-id* (max *last-id* id))
+      (setf (id object) (incf *last-id*))))
