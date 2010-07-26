@@ -391,14 +391,11 @@
 
 ;;; Data manipulations
 
-(defgeneric add (class &rest args &key &allow-other-keys))
+(defgeneric add (class &rest args))
 
-(defmethod add ((class symbol) &rest args)
-  (apply #'add (find-class class) args))
-
-(defmethod add (class &rest args &key &allow-other-keys)
+(defmethod add (class &rest args)
   (let ((object (apply #'make-instance class args)))
-    (pushnew class (storage-data class) :test #'eq)
+    (pushnew class (storage-data (class-storage class)) :test #'eq)
     (store-object object)
     (storage:interlink-objects object)
     object))
