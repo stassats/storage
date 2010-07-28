@@ -18,5 +18,7 @@
    #:load-data
    #:save-data
    #:with-storage
-   #:storage))
+   #:storage
+   #:relationships
+   #:relationship))
 

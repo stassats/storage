@@ -83,7 +83,10 @@
 (defclass storable-slot-mixin ()
   ((storep :initarg :storep
            :initform t
-           :reader store-slot-p)))
+           :reader store-slot-p)
+   (relationship :initarg :relationship
+                 :initform nil
+                 :reader slot-relationship)))
 
 (defclass storable-direct-slot-definition (storable-slot-mixin
                                            standard-direct-slot-definition)
@@ -108,7 +111,9 @@
   (declare (ignore slot-name))
   (let ((effective-definition (call-next-method)))
     (setf (slot-value effective-definition 'storep)
-          (store-slot-p (car direct-definitions)))
+          (store-slot-p (car direct-definitions))
+          (slot-value effective-definition 'relationship)
+          (slot-relationship (car direct-definitions)))
     effective-definition))
 
 (defmethod compute-slots :around ((class storable-class))
@@ -129,8 +134,17 @@
   ((id :accessor id
        :initarg :id
        :initform nil
-       :storep nil))
+       :storep nil)
+   (relationships :initarg :relationships
+                  :initform nil
+                  :accessor relationships
+                  :storep nil))
   (:metaclass storable-class))
+
+(defgeneric relationship (object type))
+
+(defmethod relationship (object type)
+  (getf (relationships object) type))
 
 (defmethod initialize-instance :after ((object identifiable)
                                        &key id)
