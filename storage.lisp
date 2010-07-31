@@ -14,7 +14,9 @@
   (setf (objects-of-class (find-class type)) value))
 
 (defun store-object (object)
-  (push object (objects-of-class (class-of object)))
+  (let ((class (class-of object)))
+    (pushnew class (storage-data class) :test #'eq)
+    (pushnew object (objects-of-class class) :test #'eq))
   t)
 
 (defun clear-data-cache ()
@@ -274,7 +276,7 @@
     (cache-class-with-id class id)
     (unless (class-finalized-p class)
       (finalize-inheritance class))
-    (push class (storage-data (class-storage class)))
+    (pushnew class (storage-data (class-storage class)))
     (setf (objects-of-class class) nil)
     (let* ((length (read-n-bytes +sequence-length+ stream))
            (vector (make-array length)))
@@ -406,11 +408,7 @@
 (defgeneric add (class &rest args))
 
 (defmethod add (class &rest args)
-  (let ((class (if (symbolp class)
-                   (find-class class)
-                   class))
-        (object (apply #'make-instance class args)))
-    (pushnew class (storage-data (class-storage class)) :test #'eq)
+  (let ((object (apply #'make-instance class args)))
     (store-object object)
     (storage:interlink-objects object)
     object))
