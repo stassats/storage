@@ -34,12 +34,12 @@
              (list* :direct-superclasses (list (find-class 'identifiable))
                     args))))
 
-(defmethod initialize-instance ((class storable-class)
-                                &rest args)
+(defmethod initialize-instance :around ((class storable-class)
+                                        &rest args)
   (apply #'initialize-storable-class #'call-next-method class args))
 
-(defmethod reinitialize-instance ((class storable-class)
-                                  &rest args)
+(defmethod reinitialize-instance :around ((class storable-class)
+                                          &rest args)
   (apply #'initialize-storable-class #'call-next-method class args))
 
 ;;;
