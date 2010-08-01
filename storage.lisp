@@ -15,7 +15,7 @@
 
 (defun store-object (object)
   (let ((class (class-of object)))
-    (pushnew class (storage-data class) :test #'eq)
+    (pushnew class (storage-data (class-storage class)) :test #'eq)
     (pushnew object (objects-of-class class) :test #'eq))
   t)
 
