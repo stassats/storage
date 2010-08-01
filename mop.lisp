@@ -86,7 +86,13 @@
            :reader store-slot-p)
    (relationship :initarg :relationship
                  :initform nil
-                 :reader slot-relationship)))
+                 :reader slot-relationship)
+   (expected-type :initarg :expected-type
+                  :initform nil
+                  :reader slot-expected-type)
+   (read-only-p :initarg :read-only-p
+                :initform nil
+                :reader slot-read-only-p)))
 
 (defclass storable-direct-slot-definition (storable-slot-mixin
                                            standard-direct-slot-definition)
@@ -105,15 +111,17 @@
   (find-class 'storable-effective-slot-definition))
 
 (defmethod compute-effective-slot-definition
-    ((class storable-class)
-     slot-name
-     direct-definitions)
+    ((class storable-class) slot-name direct-definitions)
   (declare (ignore slot-name))
-  (let ((effective-definition (call-next-method)))
-    (setf (slot-value effective-definition 'storep)
-          (store-slot-p (car direct-definitions))
-          (slot-value effective-definition 'relationship)
-          (slot-relationship (car direct-definitions)))
+  (let ((effective-definition (call-next-method))
+        (direct-definition (car direct-definitions)))
+    (with-slots (storep relationship expected-type
+                        read-only-p)
+        effective-definition
+      (setf storep (store-slot-p direct-definition)
+            relationship (slot-relationship direct-definition)
+            expected-type (slot-expected-type direct-definition)
+            read-only-p (slot-read-only-p direct-definition)))
     effective-definition))
 
 (defmethod compute-slots :around ((class storable-class))
@@ -134,7 +142,8 @@
   ((id :accessor id
        :initarg :id
        :initform nil
-       :storep nil)
+       :storep nil
+       :read-only-p t)
    (relationships :initarg :relationships
                   :initform nil
                   :accessor relationships

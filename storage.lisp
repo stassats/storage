@@ -415,7 +415,7 @@
 
 (defun where (&rest clauses)
   (let ((slots (loop for slot in clauses by #'cddr
-                     collect (intern (symbol-name slot))))
+                     collect slot))
         (values (loop for value in (cdr clauses) by #'cddr collect value)))
     (compile
      nil
