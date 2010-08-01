@@ -21,5 +21,7 @@
    #:storage
    #:relationships
    #:relationship
-   #:storage-data))
+   #:storage-data
+   #:slot-expected-type
+   #:slot-read-only-p))
 
