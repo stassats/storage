@@ -67,9 +67,6 @@
   (setf (class-id class) id)
   (setf (aref *class-cache* id) class))
 
-(defun find-class-by-id (id)
-  (aref *class-cache* id))
-
 (defmethod validate-superclass
     ((class standard-class)
      (superclass storable-class))

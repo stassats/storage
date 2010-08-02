@@ -7,6 +7,21 @@
 
 (defvar *storage* nil)
 
+(defvar *read-class-cache* #())
+
+(defun grow-read-cache (id)
+  (let ((new-cache (make-array (+ id 10) :initial-element nil)))
+    (replace new-cache *read-class-cache*)
+    (setf *read-class-cache* new-cache)))
+
+(defun cache-class (class id)
+  (unless (array-in-bounds-p *read-class-cache* id)
+    (grow-read-cache id))
+  (setf (aref *read-class-cache* id) class))
+
+(defun find-class-by-id (id)
+  (aref *read-class-cache* id))
+
 (defun objects-of-type (type)
   (objects-of-class (find-class type)))
 
@@ -42,7 +57,8 @@
 
 (defmethod update-instance-for-different-class
     :after ((previous identifiable) (current identifiable) &key)
-  (delete previous)
+  (setf (objects-of-class (class-of previous))
+        (cl:delete current (objects-of-class (class-of previous))))
   (store-object current))
 
 ;;;
@@ -276,7 +292,7 @@
 (defreader storable-class (stream)
   (let ((class (find-class (read-next-object stream)))
         (id (read-n-bytes 1 stream)))
-    (cache-class-with-id class id)
+    (cache-class class id)
     (unless (class-finalized-p class)
       (finalize-inheritance class))
     (pushnew class (storage-data (class-storage class)))
@@ -388,7 +404,8 @@
 
 (defun clear-cashes ()
   (clear-data-cache)
-  (clrhash *indexes*))
+  (clrhash *indexes*)
+  (setf *read-class-cache* #()))
 
 (defun load-data (storage &optional file)
   (let ((*storage* storage))
