@@ -23,5 +23,6 @@
    #:relationship
    #:storage-data
    #:slot-expected-type
-   #:slot-read-only-p))
+   #:slot-read-only-p
+   #:object-with-id))
 

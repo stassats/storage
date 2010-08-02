@@ -111,6 +111,9 @@
 (defun index-object (object)
   (setf (gethash (id object) *indexes*) object))
 
+(defun object-with-id (id)
+  (gethash id *indexes*))
+
 ;;;
 
 (defun slot-effective-definition (class slot-name)
