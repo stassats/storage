@@ -19,8 +19,8 @@
    #:save-data
    #:with-storage
    #:storage
-   #:relationships
-   #:relationship
+   #:relations
+   #:relation
    #:storage-data
    #:slot-expected-type
    #:slot-read-only-p

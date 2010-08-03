@@ -378,22 +378,22 @@
 
 ;;;
 
-(defun interlink-slots (object slot relationship-name)
+(defun interlink-slots (object slot relation-name)
   (dolist (slot (if (listp slot)
                     slot
                     (list slot)))
-    (pushnew object (getf (relationships slot) relationship-name))))
+    (pushnew object (getf (relations slot) relation-name))))
 
 (defgeneric interlink-objects (object))
 
 (defmethod interlink-objects ((object t))
   (let ((class (class-of object)))
     (loop for slot across (slots-to-store class)
-          for relationship-name = (slot-relationship slot)
-          when relationship-name
+          for relation-name = (slot-relation slot)
+          when relation-name
           do (interlink-slots object
                               (slot-value-using-class class object slot)
-                              relationship-name))))
+                              relation-name))))
 
 ;;;
 

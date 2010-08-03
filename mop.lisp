@@ -81,9 +81,9 @@
   ((storep :initarg :storep
            :initform t
            :reader store-slot-p)
-   (relationship :initarg :relationship
+   (relation :initarg :relation
                  :initform nil
-                 :reader slot-relationship)
+                 :reader slot-relation)
    (expected-type :initarg :expected-type
                   :initform nil
                   :reader slot-expected-type)
@@ -112,11 +112,11 @@
   (declare (ignore slot-name))
   (let ((effective-definition (call-next-method))
         (direct-definition (car direct-definitions)))
-    (with-slots (storep relationship expected-type
+    (with-slots (storep relation expected-type
                         read-only-p)
         effective-definition
       (setf storep (store-slot-p direct-definition)
-            relationship (slot-relationship direct-definition)
+            relation (slot-relation direct-definition)
             expected-type (slot-expected-type direct-definition)
             read-only-p (slot-read-only-p direct-definition)))
     effective-definition))
@@ -141,16 +141,16 @@
        :initform nil
        :storep nil
        :read-only-p t)
-   (relationships :initarg :relationships
+   (relations :initarg :relations
                   :initform nil
-                  :accessor relationships
+                  :accessor relations
                   :storep nil))
   (:metaclass storable-class))
 
-(defgeneric relationship (object type))
+(defgeneric relation (object type))
 
-(defmethod relationship (object type)
-  (getf (relationships object) type))
+(defmethod relation (object type)
+  (getf (relations object) type))
 
 (defmethod initialize-instance :after ((object identifiable)
                                        &key id)
