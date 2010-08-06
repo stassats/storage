@@ -5,6 +5,33 @@
 
 (in-package #:storage)
 
+(defvar *last-id* -1)
+
+(defclass identifiable (standard-object)
+  ((id :accessor id
+       :initarg :id
+       :initform nil
+       :storep nil
+       :read-only-p t)
+   (relations :initarg :relations
+                  :initform nil
+                  :accessor relations
+                  :storep nil))
+  (:metaclass storable-class))
+
+(defgeneric relation (object type))
+
+(defmethod relation (object type)
+  (getf (relations object) type))
+
+(defmethod initialize-instance :after ((object identifiable)
+                                       &key id)
+  (if (integerp id)
+      (setf *last-id* (max *last-id* id))
+      (setf (id object) (incf *last-id*))))
+
+;;;
+
 (defvar *storage* nil)
 
 (defvar *read-class-cache* #())
