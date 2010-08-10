@@ -24,5 +24,6 @@
    #:storage-data
    #:slot-expected-type
    #:slot-read-only-p
-   #:object-with-id))
+   #:object-with-id
+   #:map-data))
 
