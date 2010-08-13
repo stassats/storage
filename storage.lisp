@@ -132,6 +132,7 @@
   (let ((object (apply #'make-instance class args)))
     (store-object object)
     (storage:interlink-objects object)
+    (index-object object)
     object))
 
 (defun where (&rest clauses)
