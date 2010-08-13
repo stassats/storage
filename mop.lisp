@@ -140,7 +140,9 @@
                    (loop for superclass in (class-direct-superclasses class)
                          when (and (typep superclass 'storable-class)
                                    (search-key superclass))
-                         return (slot-definition-name (search-key superclass))))))
+                         return (if (consp (search-key superclass))
+                                    (car (search-key superclass))
+                                    (slot-definition-name (search-key superclass)))))))
       (when key
         (setf search-key
               (or (find key slots
