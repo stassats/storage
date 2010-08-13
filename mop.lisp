@@ -21,7 +21,10 @@
             :accessor objects-of-class)
    (storage :initform nil
             :initarg :storage
-            :accessor class-storage)))
+            :accessor class-storage)
+   (search-key :initform nil
+               :initarg :search-key
+               :accessor search-key)))
 
 (declaim (ftype (function (t) simple-vector)
                 slots-to-store))
@@ -127,7 +130,24 @@
     (setf (slot-value class 'slots-to-store)
           (coerce (remove-if-not #'store-slot-p slots)
                   'simple-vector))
+    (compute-search-key class slots)
     slots))
+
+(defun compute-search-key (class slots)
+  (with-accessors ((search-key search-key)) class
+    (let ((key (or (and (consp search-key)
+                        (car search-key))
+                   (loop for superclass in (class-direct-superclasses class)
+                         when (and (typep superclass 'storable-class)
+                                   (search-key superclass))
+                         return (slot-definition-name (search-key superclass))))))
+      (when key
+        (setf search-key
+              (or (find key slots
+                        :key #'slot-definition-name)
+                  (error "No slot named ~a in class ~a."
+                         key class)))))))
 
 (defmethod initialize-instance :after ((class storable-class) &key)
   (assign-id-to-class class))
+

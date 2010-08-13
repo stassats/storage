@@ -25,5 +25,6 @@
    #:slot-expected-type
    #:slot-read-only-p
    #:object-with-id
-   #:map-data))
+   #:map-data
+   #:search-key))
 
