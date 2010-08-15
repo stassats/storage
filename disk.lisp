@@ -3,11 +3,12 @@
 (in-package #:storage)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defvar *codes* #(integer ascii-string
+  (defvar *codes* #(ascii-string
                     identifiable cons
                     string symbol
                     storable-class
-                    standard-object)))
+                    standard-object
+                    fixnum bignum ratio)))
 
 (declaim (type simple-vector *codes*))
 
@@ -36,15 +37,16 @@
              #',name))))
 
 (defun call-reader (code stream)
-  ;; (collect-stats code)
+  (collect-stats code)
   (funcall (aref *code-functions* code) stream))
 
 ;;;
 
 (defconstant +sequence-length+ 2)
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defconstant +integer-length+ 3))
+  (defconstant +fixnum-length+ 4))
 (defconstant +char-length+ 2)
+(defconstant +id-length+ 3)
 
 (defconstant +end-of-slots+ 255)
 
@@ -111,15 +113,74 @@
 ;;; Integer
 
 (defmethod object-size ((object integer))
-  (+ 1 +integer-length+))
+  (+ 1 ;; tag
+     1 ;; sign
+     (typecase object
+       (#.`(signed-byte ,(* +fixnum-length+ 8))
+          +fixnum-length+)
+       (t (+ 1 ;; size
+             (* (ceiling (integer-length (abs object))
+                         (* +fixnum-length+ 8)) +fixnum-length+))))))
+
+(defun write-fixnum (n stream)
+  (write-n-bytes #.(type-code 'fixnum) 1 stream)
+  (write-n-bytes (if (minusp n) 1 0) 1 stream)
+  (write-n-bytes (abs n) +fixnum-length+ stream))
+
+(defun write-bignum (n stream)
+  (write-n-bytes #.(type-code 'bignum) 1 stream)
+  (write-n-bytes (if (minusp n) 1 0) 1 stream)
+  (let* ((n (abs n))
+        (size (ceiling (integer-length n)
+                       (* +fixnum-length+ 8))))
+    (write-n-bytes size 1 stream)
+    (loop for position to size
+          do 
+          (write-n-bytes (ldb (byte (* +fixnum-length+ 8)
+                                    (* position (* +fixnum-length+ 8)))
+                              n)
+                         +fixnum-length+ stream))))
 
 (defmethod write-object ((object integer) stream)
-  (assert (typep object #.`'(unsigned-byte ,(* +integer-length+ 8))))
-  (write-n-bytes #.(type-code 'integer) 1 stream)
-  (write-n-bytes object +integer-length+ stream))
+  (typecase object
+    (#.`(signed-byte ,(* +fixnum-length+ 8))
+       (write-fixnum object stream))
+    (t (write-bignum object stream))))
 
-(defreader integer (stream)
-  (read-n-bytes +integer-length+ stream))
+(defreader bignum (stream)
+  (* (if (plusp (read-n-bytes 1 stream))
+         -1
+         1)
+     (loop with integer = 0
+           for position to (read-n-bytes 1 stream)
+           do 
+           (setf (ldb (byte (* +fixnum-length+ 8)
+                            (* position (* +fixnum-length+ 8)))
+                      integer)
+                 (read-n-bytes +fixnum-length+ stream))
+           finally (return integer))))
+
+(defreader fixnum (stream)
+  (* (if (plusp (read-n-bytes 1 stream))
+         -1
+         1)
+   (read-n-bytes +fixnum-length+ stream)))
+
+;;; Ratio
+
+(defmethod object-size ((object ratio))
+  (+ 1
+     (object-size (numerator object))
+     (object-size (denominator object))))
+
+(defmethod write-object ((object ratio) stream)
+  (write-n-bytes #.(type-code 'ratio) 1 stream)
+  (write-object (numerator object) stream)
+  (write-object (denominator object) stream))
+
+(defreader ratio (stream)
+  (/ (read-next-object stream)
+     (read-next-object stream)))
 
 ;;; Strings
 
@@ -237,15 +298,15 @@
 
 (defmethod object-size ((object identifiable))
   (+ 2 ;; type + class id
-     +integer-length+))
+     +id-length+))
 
 (defmethod write-object ((object identifiable) stream)
   (write-n-bytes #.(type-code 'identifiable) 1 stream)
-  (write-n-bytes (id object) +integer-length+ stream)
+  (write-n-bytes (id object) +id-length+ stream)
   (write-n-bytes (class-id (class-of object)) 1 stream))
 
 (defreader identifiable (stream)
-  (let ((id (read-n-bytes +integer-length+ stream))
+  (let ((id (read-n-bytes +id-length+ stream))
         (class-id (read-n-bytes 1 stream)))
     (or (gethash id *indexes*)
         (setf (gethash id *indexes*)
@@ -258,7 +319,7 @@
   (let* ((class (class-of object)))
     (+ 1                ;; data type
        1                ;; class id
-       +integer-length+ ;; id
+       +id-length+ ;; id
        (loop for slot-def across (slots-to-store class)
              sum (let ((value (slot-value-using-class class object slot-def)))
                    (if (eql value (slot-definition-initform slot-def))
@@ -273,7 +334,7 @@
   (write-n-bytes #.(type-code 'standard-object) 1 stream)
   (let ((class (class-of object)))
     (write-n-bytes (class-id class) 1 stream)
-    (write-n-bytes (id object) +integer-length+ stream)
+    (write-n-bytes (id object) +id-length+ stream)
     (loop for slot-def across (slots-to-store class)
           for i from 0
           for value = (slot-value-using-class class object slot-def)
@@ -291,7 +352,7 @@
 
 (defreader standard-object (stream)
   (let* ((class (find-class-by-id (read-n-bytes 1 stream)))
-         (id (read-n-bytes +integer-length+ stream))
+         (id (read-n-bytes +id-length+ stream))
          (instance (get-instance id class))
          (slots (slots-to-store class)))
     (loop for slot-id = (read-n-bytes 1 stream)
