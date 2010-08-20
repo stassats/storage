@@ -129,11 +129,13 @@
 (defgeneric add (class &rest args))
 
 (defmethod add (class &rest args)
-  (let ((object (apply #'make-instance class args)))
-    (store-object object)
-    (storage:interlink-objects object)
-    (index-object object)
-    object))
+  (add (apply #'make-instance class args)))
+
+(defmethod add ((object identifiable) &key)
+  (store-object object)
+  (storage:interlink-objects object)
+  (index-object object)
+  object)
 
 (defun where (&rest clauses)
   (let ((slots (loop for slot in clauses by #'cddr
