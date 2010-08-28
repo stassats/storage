@@ -22,7 +22,7 @@
    #:relations
    #:relation
    #:storage-data
-   #:slot-expected-type
+   #:slot-db-type
    #:slot-read-only-p
    #:object-with-id
    #:map-data

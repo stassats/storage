@@ -11,8 +11,9 @@
   ((id :accessor id
        :initarg :id
        :initform nil
-       :storep nil
-       :read-only-p t)
+       :storep t
+       :read-only-p t
+       :db-type :integer)
    (relations :initarg :relations
                   :initform nil
                   :accessor relations
@@ -66,13 +67,9 @@
   (setf (objects-of-class (find-class type)) value))
 
 (defun store-object (object)
-  (let ((class (class-of object)))
-    (pushnew class (storage-data (class-storage class)) :test #'eq)
-    (pushnew object (objects-of-class class) :test #'eq))
+  (pushnew object (objects-of-class (class-of object))
+           :test #'eq)
   t)
-
-(defun clear-data-cache ()
-  (setf (storage-data *storage*) nil))
 
 (defun delete (object)
   (setf (objects-of-class (class-of object))
@@ -120,7 +117,6 @@
 ;;;
 
 (defun clear-cashes ()
-  (clear-data-cache)
   (clrhash *indexes*)
   (setf *read-class-cache* #()))
 
