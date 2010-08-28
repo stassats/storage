@@ -11,7 +11,7 @@
   ((id :accessor id
        :initarg :id
        :initform nil
-       :storep t
+       :storep nil
        :read-only-p t
        :db-type :integer)
    (relations :initarg :relations
