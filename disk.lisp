@@ -259,6 +259,8 @@
 ;;; storable-class
 
 (defmethod object-size ((class storable-class))
+  (unless (class-finalized-p class)
+    (finalize-inheritance class))
   (+ 1 ;; type
      (object-size (class-name class))
      1                 ;; class-id
@@ -271,6 +273,8 @@
   (write-n-bytes #.(type-code 'storable-class) 1 stream)
   (write-object (class-name class) stream)
   (write-n-bytes (class-id class) 1 stream)
+  (unless (class-finalized-p class)
+      (finalize-inheritance class))
   (let ((slots (slots-to-store class)))
     (write-n-bytes (length slots) +sequence-length+ stream)
     (loop for slot across slots
