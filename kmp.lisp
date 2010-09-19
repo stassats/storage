@@ -20,22 +20,26 @@
     table))
 
 (declaim (inline do-kmp))
-(defun do-kmp (sub-sequence sequence table)
-  (declare (type simple-string sequence sub-sequence)
+(defun do-kmp (lower-case upper-case string table)
+  (declare (type simple-string lower-case upper-case string)
            (type (simple-array fixnum (*)) table)
            (optimize speed))
-  (unless (> (length sub-sequence) (length sequence))
-    (loop with m = 0 and i = 0
-          while (< (#+sbcl sb-ext:truly-the #-sbcl the fixnum
-                           (+ m i)) (length sequence))
-          do (cond ((not (char-equal (aref sub-sequence i)
-                                     (aref sequence (+ m i))))
-                    (let ((backtrack (aref table i)))
-                      (setf m (#+sbcl sb-ext:truly-the #-sbcl the fixnum
-                                                (+ m (- i backtrack)))
-                            i (max 0 backtrack))))
-                   ((= (incf i) (length sub-sequence))
-                    (return m))))))
+  (let ((pattern-length (length lower-case))
+        (length (length string)))
+   (unless (> pattern-length length)
+     (loop with m = 0 and i = 0
+           for m+i fixnum = (#+sbcl sb-ext:truly-the #-sbcl the fixnum
+                                    (+ m i))
+           while (< m+i length)
+           for char = (schar string m+i)
+           do (cond ((not (or (eql (schar lower-case i) char)
+                              (eql (schar upper-case i) char)))
+                     (let ((backtrack (aref table i)))
+                       (setf m (#+sbcl sb-ext:truly-the #-sbcl the fixnum
+                                       (- m+i backtrack))
+                             i (max 0 backtrack))))
+                    ((= (incf i) pattern-length)
+                     (return m)))))))
 
 (defun kmp (sub-sequence sequence &optional table)
   (declare (type vector sequence sub-sequence))
