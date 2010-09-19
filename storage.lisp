@@ -84,10 +84,13 @@
              class (objects-of-class class))))
 
 (defun map-type (type function)
-  (dolist (class (storage-data *storage*))
-    (when (subtypep class type)
-      (map nil function
-           (objects-of-class class)))))
+  (let ((type (if (eql type t)
+                  'identifiable
+                  type)))
+   (dolist (class (storage-data *storage*))
+     (when (subtypep class type)
+       (map nil function
+            (objects-of-class class))))))
 
 (defmethod update-instance-for-different-class
     :after ((previous identifiable) (current identifiable) &key)
@@ -147,7 +150,9 @@
                          (function
                           `(funcall ,value ,slot))
                          (string
-                          `(search ,value ,slot :test #'char-equal))
+                          (if (= (length value) 1)
+                              `(find ,(char value 0) ,slot :test #'char-equal)
+                              `(do-kmp ,value ,slot ,(build-table value))))
                          (t
                           `(equalp ,value ,slot))))
                      slots values)))))))
