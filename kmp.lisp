@@ -1,14 +1,15 @@
 (in-package :storage)
 
-(defun build-table (vector)
+(defun build-table (vector &optional (test #'char-equal))
   (let* ((length (length vector))
          (table (make-array length :element-type 'fixnum)))
     (setf (aref table 0) -1)
     (setf (aref table 1) 0)
     (loop with pos = 2 and candidate = 0
           while (< pos length)
-          do (cond ((char-equal (aref vector (1- pos))
-                                (aref vector candidate))
+          do (cond ((funcall test
+                             (aref vector (1- pos))
+                             (aref vector candidate))
                     (setf (aref table pos) (1+ candidate))
                     (incf pos)
                     (incf candidate))
@@ -30,7 +31,8 @@
 
 (declaim (inline do-kmp))
 (defun do-kmp (pattern reverse-case string table)
-  (declare (type simple-string pattern reverse-case string)
+  (declare (type simple-string pattern string)
+           (type (or null simple-string) reverse-case)
            (type (simple-array fixnum (*)) table)
            (optimize speed))
   (let ((pattern-length (length pattern))
@@ -42,7 +44,8 @@
            while (< m+i length)
            for char = (schar string m+i)
            do (cond ((not (or (eql (schar pattern i) char)
-                              (eql (schar reverse-case i) char)))
+                              (and reverse-case
+                                   (eql (schar reverse-case i) char))))
                      (let ((backtrack (aref table i)))
                        (setf m (#+sbcl sb-ext:truly-the #-sbcl the fixnum
                                        (- m+i backtrack))
