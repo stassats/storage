@@ -21,12 +21,13 @@
     table))
 
 (defun reverse-case (string)
-  (map 'string (lambda (x)
-                 (cond ((upper-case-p x)
-                        (char-downcase x))
-                       ((lower-case-p x)
-                        (char-upcase x))
-                       (t x)))
+  (map 'string
+       (lambda (x)
+         (cond ((upper-case-p x)
+                (char-downcase x))
+               ((lower-case-p x)
+                (char-upcase x))
+               (t x)))
        string))
 
 (declaim (inline do-kmp))
@@ -37,21 +38,22 @@
            (optimize speed))
   (let ((pattern-length (length pattern))
         (length (length string)))
-   (unless (> pattern-length length)
-     (loop with m = 0 and i = 0
-           for m+i fixnum = (#+sbcl sb-ext:truly-the #-sbcl the fixnum
-                                    (+ m i))
-           while (< m+i length)
-           for char = (schar string m+i)
-           do (cond ((not (or (eql (schar pattern i) char)
-                              (and reverse-case
-                                   (eql (schar reverse-case i) char))))
-                     (let ((backtrack (aref table i)))
-                       (setf m (#+sbcl sb-ext:truly-the #-sbcl the fixnum
-                                       (- m+i backtrack))
-                             i (max 0 backtrack))))
-                    ((= (incf i) pattern-length)
-                     (return m)))))))
+    (unless (> pattern-length length)
+      (loop with m = 0 and i = 0
+            for m+i fixnum = (#+sbcl sb-ext:truly-the #-sbcl the fixnum
+                                     (+ m i))
+            while (and (< m+i length)
+                       (< i pattern-length)) ; hint for SBCL
+            do (let ((char (schar string m+i)))
+                 (cond ((not (or (char= (schar pattern i) char)
+                                 (and reverse-case
+                                      (char= (schar reverse-case i) char))))
+                        (let ((backtrack (aref table i)))
+                          (setf m (#+sbcl sb-ext:truly-the #-sbcl the fixnum
+                                          (- m+i backtrack))
+                                i (max 0 backtrack))))
+                       ((= (incf i) pattern-length)
+                        (return m))))))))
 
 (defun kmp (sub-sequence sequence &optional table)
   (declare (type vector sequence sub-sequence))
