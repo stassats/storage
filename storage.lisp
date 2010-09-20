@@ -104,11 +104,12 @@
   (dolist (slot (if (listp slot)
                     slot
                     (list slot)))
-    (pushnew object (getf (relations slot) relation-name))))
+    (when (typep slot 'identifiable)
+      (pushnew object (getf (relations slot) relation-name)))))
 
 (defgeneric interlink-objects (object))
 
-(defmethod interlink-objects ((object t))
+(defmethod interlink-objects ((object identifiable))
   (let ((class (class-of object)))
     (loop for slot across (slots-to-store class)
           for relation-name = (slot-relation slot)
