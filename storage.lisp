@@ -152,9 +152,9 @@
                           `(funcall ,value ,slot))
                          (string
                           (if (= (length value) 1)
-                               `(find ,(char value 0) ,slot :test #'char-equal)
-                               `(do-kmp ,(string-downcase value) ,(string-upcase value)
-                                        ,slot ,(build-table value))))
+                              `(find ,(char value 0) ,slot :test #'char-equal)
+                              `(do-kmp ,value ,(reverse-case value)
+                                       ,slot ,(build-table value))))
                          (t
                           `(equalp ,value ,slot))))
                      slots values)))))))
