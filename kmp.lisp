@@ -58,12 +58,16 @@
                        ((= (incf i) pattern-length)
                         (return m))))))))
 
-(defun kmp (pattern sequence &key (case-insensitive t))
-  (declare (type simple-string sequence pattern))
+(defun kmp (pattern string &key (case-insensitive t))
+  (declare (type simple-string string pattern))
   (let ((sub-length (length pattern))
-        (length (length sequence)))
+        (length (length string)))
     (cond ((= sub-length 1)
-           (position (elt pattern 0) sequence))
+           (position (elt pattern 0) string
+                     :test
+                     (if case-insensitive
+                         #'char-equal
+                         #'char=)))
           ((= sub-length 0)
            0)
           ((> sub-length length)
@@ -71,5 +75,5 @@
           (t
            (do-kmp pattern (when case-insensitive
                              (reverse-case pattern))
-                   sequence
+                   string
                    (build-table pattern))))))
