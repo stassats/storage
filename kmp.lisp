@@ -58,16 +58,18 @@
                        ((= (incf i) pattern-length)
                         (return m))))))))
 
-(defun kmp (sub-sequence sequence &optional table)
-  (declare (type vector sequence sub-sequence))
-  (let ((sub-length (length sub-sequence))
+(defun kmp (pattern sequence &key (case-insensitive t))
+  (declare (type simple-string sequence pattern))
+  (let ((sub-length (length pattern))
         (length (length sequence)))
     (cond ((= sub-length 1)
-           (position (elt sub-sequence 0) sequence))
+           (position (elt pattern 0) sequence))
           ((= sub-length 0)
            0)
           ((> sub-length length)
            nil)
           (t
-           (do-kmp sub-sequence sequence
-                   (or table (build-table sub-sequence)))))))
+           (do-kmp pattern (when case-insensitive
+                             (reverse-case pattern))
+                   sequence
+                   (build-table pattern))))))
