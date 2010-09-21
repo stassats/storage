@@ -1,18 +1,21 @@
 (in-package :storage)
 
-(defun build-table (vector &optional (test #'char-equal))
-  (let* ((length (length vector))
+(declaim (inline build-table))
+(defun build-table (string &optional (test #'char-equal))
+  (declare (type simple-string string)
+           (optimize speed
+                     #+sbcl (sb-c::insert-array-bounds-checks 0)))
+  (let* ((length (length string))
          (table (make-array length :element-type 'fixnum)))
-    (setf (aref table 0) -1)
-    (setf (aref table 1) 0)
-    (loop with pos = 2 and candidate = 0
+    (setf (aref table 0) -1
+          (aref table 1) 0)
+    (loop with pos fixnum = 2 and candidate fixnum = 0
           while (< pos length)
           do (cond ((funcall test
-                             (aref vector (1- pos))
-                             (aref vector candidate))
-                    (setf (aref table pos) (1+ candidate))
-                    (incf pos)
-                    (incf candidate))
+                             (schar string (1- pos))
+                             (schar string candidate))
+                    (setf (aref table pos) (incf candidate))
+                    (incf pos))
                    ((plusp candidate)
                     (setf candidate (aref table candidate)))
                    (t
