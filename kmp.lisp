@@ -1,37 +1,42 @@
 (in-package :storage)
 
 (declaim (inline build-table))
-(defun build-table (string &optional (test #'char-equal))
+(defun build-table (string reverse-case)
   (declare (type simple-string string)
            (optimize speed
                      #+sbcl (sb-c::insert-array-bounds-checks 0)))
   (let* ((length (length string))
-         (table (make-array length :element-type 'fixnum)))
-    (setf (aref table 0) -1
-          (aref table 1) 0)
+         (table (make-array length :element-type 'fixnum
+                            :initial-element 0)))
+    (setf (aref table 0) -1)
     (loop with pos fixnum = 2 and candidate fixnum = 0
           while (< pos length)
-          do (cond ((funcall test
-                             (schar string (1- pos))
-                             (schar string candidate))
-                    (setf (aref table pos) (incf candidate))
-                    (incf pos))
-                   ((plusp candidate)
-                    (setf candidate (aref table candidate)))
-                   (t
-                    (setf (aref table pos) 0)
-                    (incf pos))))
+          do (let ((char (schar string candidate)))
+               (cond ((or (char= (schar string (1- pos)) char)
+                          (and reverse-case
+                               (char= (schar reverse-case (1- pos)) char)))
+                      (setf (aref table pos) (incf candidate))
+                      (incf pos))
+                     ((plusp candidate)
+                      (setf candidate (aref table candidate)))
+                     (t
+                      (setf (aref table pos) 0)
+                      (incf pos)))))
     table))
 
+(declaim (inline reverse-case))
 (defun reverse-case (string)
-  (map 'string
-       (lambda (x)
-         (cond ((upper-case-p x)
-                (char-downcase x))
-               ((lower-case-p x)
-                (char-upcase x))
-               (t x)))
-       string))
+  (declare (simple-string string)
+           (optimize speed))
+  (let ((reversed  (make-string (length string))))
+    (loop for char across string
+          for i from 0
+          do
+          (setf (char reversed i)
+                (if (upper-case-p char)
+                    (char-downcase char)
+                    (char-upcase char))))
+    reversed))
 
 (declaim (inline do-kmp))
 (defun do-kmp (pattern reverse-case string table)
@@ -62,18 +67,13 @@
   (declare (type simple-string string pattern))
   (let ((sub-length (length pattern))
         (length (length string)))
-    (cond ((= sub-length 1)
-           (position (elt pattern 0) string
-                     :test
-                     (if case-insensitive
-                         #'char-equal
-                         #'char=)))
-          ((= sub-length 0)
+    (cond ((= sub-length 0)
            0)
           ((> sub-length length)
            nil)
           (t
-           (do-kmp pattern (when case-insensitive
-                             (reverse-case pattern))
-                   string
-                   (build-table pattern))))))
+           (let ((reversed (when case-insensitive
+                              (reverse-case pattern))))
+            (do-kmp pattern reversed
+                    string
+                    (build-table pattern reversed)))))))
