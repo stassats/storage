@@ -153,8 +153,9 @@
                          (string
                           (if (= (length value) 1)
                               `(find ,(char value 0) ,slot :test #'char-equal)
-                              `(do-kmp ,value ,(reverse-case value)
-                                       ,slot ,(build-table value))))
+                              (let ((reversed (reverse-case value)))
+                               `(do-kmp ,value ,reversed
+                                  ,slot ,(build-table value reversed)))))
                          (t
                           `(equalp ,value ,slot))))
                      slots values)))))))
