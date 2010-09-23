@@ -77,3 +77,12 @@
             (do-kmp pattern reversed
                     string
                     (build-table pattern reversed)))))))
+
+(defun make-kmp-searcher (pattern &key case-sensitive)
+  (let ((reversed (if case-sensitive
+                      nil
+                      (reverse-case pattern))))
+    (compile nil
+             `(lambda (text) 
+                  (do-kmp ,pattern ,reversed
+                          text ,(build-table pattern reversed))))))

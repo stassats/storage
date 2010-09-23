@@ -26,5 +26,6 @@
    #:slot-read-only-p
    #:object-with-id
    #:map-data
-   #:search-key))
+   #:search-key
+   #:make-kmp-searcher))
 
