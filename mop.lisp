@@ -29,8 +29,8 @@
 (declaim (ftype (function (t) simple-vector)
                 slots-to-store))
 
-(defun initialize-storable-class (next-method class
-                                  &rest args &key direct-superclasses &allow-other-keys)
+(defun initialize-storable-class (next-method class &rest args
+                                  &key direct-superclasses &allow-other-keys)
   (apply next-method class
          (if direct-superclasses
              args
@@ -134,21 +134,21 @@
     slots))
 
 (defun compute-search-key (class slots)
-  (with-accessors ((search-key search-key)) class
-    (let ((key (or (and (consp search-key)
-                        (car search-key))
-                   (loop for superclass in (class-direct-superclasses class)
-                         when (and (typep superclass 'storable-class)
-                                   (search-key superclass))
-                         return (if (consp (search-key superclass))
-                                    (car (search-key superclass))
-                                    (slot-definition-name (search-key superclass)))))))
-      (when key
+  (with-slots (search-key) class
+    (let* ((key (or search-key
+                    (loop for superclass in (class-direct-superclasses class)
+                          thereis (and (typep superclass 'storable-class)
+                                       (search-key superclass)))))
+           (slot-name (typecase key
+                       (cons (car key))
+                       (effective-slot-definition
+                        (slot-definition-name key)))))
+      (when slot-name
         (setf search-key
-              (or (find key slots
+              (or (find slot-name slots
                         :key #'slot-definition-name)
-                  (error "No slot named ~a in class ~a."
-                         key class)))))))
+                  (error "Search key ~a for an uknown slot in class ~a"
+                         slot-name class)))))))
 
 (defmethod initialize-instance :after ((class storable-class) &key)
   (when (class-storage class)
