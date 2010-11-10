@@ -37,7 +37,7 @@
              #',name))))
 
 (defun call-reader (code stream)
-  (collect-stats code)
+  ;; (collect-stats code)
   (funcall (aref *code-functions* code) stream))
 
 ;;;
