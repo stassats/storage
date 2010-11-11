@@ -27,5 +27,7 @@
    #:object-with-id
    #:map-data
    #:search-key
-   #:make-kmp-searcher))
+   #:make-kmp-searcher
+   #:count
+   #:slot-unit))
 

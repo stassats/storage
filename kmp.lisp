@@ -28,7 +28,7 @@
 (defun reverse-case (string)
   (declare (simple-string string)
            (optimize speed))
-  (let ((reversed  (make-string (length string))))
+  (let ((reversed (make-string (length string))))
     (loop for char across string
           for i from 0
           do

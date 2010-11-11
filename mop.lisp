@@ -85,14 +85,17 @@
            :initform t
            :reader store-slot-p)
    (relation :initarg :relation
-                 :initform nil
-                 :reader slot-relation)
+             :initform nil
+             :reader slot-relation)
    (db-type :initarg :db-type
-                  :initform nil
-                  :reader slot-db-type)
+            :initform nil
+            :reader slot-db-type)
    (read-only-p :initarg :read-only-p
                 :initform nil
-                :reader slot-read-only-p)))
+                :reader slot-read-only-p)
+   (unit :initarg :unit
+         :initform nil
+         :reader slot-unit)))
 
 (defclass storable-direct-slot-definition (storable-slot-mixin
                                            standard-direct-slot-definition)
@@ -117,12 +120,13 @@
   (let ((effective-definition (call-next-method))
         (direct-definition (car direct-definitions)))
     (with-slots (storep relation db-type
-                        read-only-p)
+                 read-only-p unit)
         effective-definition
       (setf storep (store-slot-p direct-definition)
             relation (slot-relation direct-definition)
             db-type (slot-db-type direct-definition)
-            read-only-p (slot-read-only-p direct-definition)))
+            read-only-p (slot-read-only-p direct-definition)
+            unit (slot-unit direct-definition)))
     effective-definition))
 
 (defmethod compute-slots :around ((class storable-class))
