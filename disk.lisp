@@ -92,15 +92,20 @@
 
 ;;; Symbol
 
+(defun short-package-name (package)
+  (if (eq package (find-package :cl))
+      (symbol-name :cl)
+      (package-name package)))
+
 (defmethod object-size ((object symbol))
   (+ 3 ;; type + package name length + symbol length
-     (length (package-name (symbol-package object)))
+     (length (short-package-name (symbol-package object)))
      (length (symbol-name object))))
 
 (defmethod write-object ((object symbol) stream)
   (write-n-bytes #.(type-code 'symbol) 1 stream)
   (let ((name (symbol-name object))
-        (package (package-name (symbol-package object))))
+        (package (short-package-name (symbol-package object))))
     (write-n-bytes (length name) 1 stream)
     (write-ascii-string name stream)
     (write-n-bytes (length package) 1 stream)
