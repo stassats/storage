@@ -15,9 +15,9 @@
        :read-only-p t
        :db-type :integer)
    (relations :initarg :relations
-                  :initform nil
-                  :accessor relations
-                  :storep nil))
+              :initform nil
+              :accessor relations
+              :storep nil))
   (:metaclass storable-class))
 
 (defgeneric relation (object type))
@@ -87,10 +87,10 @@
   (let ((type (if (eql type t)
                   'identifiable
                   type)))
-   (dolist (class (storage-data *storage*))
-     (when (subtypep class type)
-       (map nil function
-            (objects-of-class class))))))
+    (dolist (class (storage-data *storage*))
+      (when (subtypep class type)
+        (map nil function
+             (objects-of-class class))))))
 
 (defmethod update-instance-for-different-class
     :after ((previous identifiable) (current identifiable) &key)
@@ -154,9 +154,9 @@
                           (if (= (length value) 1)
                               `(find ,(char value 0) ,slot :test #'char-equal)
                               (let ((reversed (reverse-case value)))
-                               `(and ,slot
-                                     (do-kmp ,value ,reversed
-                                             ,slot ,(build-table value reversed))))))
+                                `(and ,slot
+                                      (do-kmp ,value ,reversed
+                                              ,slot ,(build-table value reversed))))))
                          (t
                           `(equalp ,value ,slot))))
                      slots values)))))))

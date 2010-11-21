@@ -140,7 +140,7 @@
                        (* +fixnum-length+ 8))))
     (write-n-bytes size 1 stream)
     (loop for position to size
-          do 
+          do
           (write-n-bytes (ldb (byte (* +fixnum-length+ 8)
                                     (* position (* +fixnum-length+ 8)))
                               n)
@@ -158,7 +158,7 @@
          1)
      (loop with integer = 0
            for position to (read-n-bytes 1 stream)
-           do 
+           do
            (setf (ldb (byte (* +fixnum-length+ 8)
                             (* position (* +fixnum-length+ 8)))
                       integer)

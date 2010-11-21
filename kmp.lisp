@@ -73,10 +73,10 @@
            nil)
           (t
            (let ((reversed (when case-insensitive
-                              (reverse-case pattern))))
-            (do-kmp pattern reversed
-                    string
-                    (build-table pattern reversed)))))))
+                             (reverse-case pattern))))
+             (do-kmp pattern reversed
+                     string
+                     (build-table pattern reversed)))))))
 
 (defun make-kmp-searcher (pattern &key case-sensitive)
   (let ((reversed (if case-sensitive
@@ -84,5 +84,5 @@
                       (reverse-case pattern))))
     (compile nil
              `(lambda (text) 
-                  (do-kmp ,pattern ,reversed
-                          text ,(build-table pattern reversed))))))
+                (do-kmp ,pattern ,reversed
+                        text ,(build-table pattern reversed))))))

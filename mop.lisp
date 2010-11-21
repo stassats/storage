@@ -78,7 +78,7 @@
 (defmethod validate-superclass
     ((class storable-class)
      (superclass standard-class))
-    t)
+  t)
 
 (defclass storable-slot-mixin ()
   ((storep :initarg :storep
@@ -144,9 +144,9 @@
                           thereis (and (typep superclass 'storable-class)
                                        (search-key superclass)))))
            (slot-name (typecase key
-                       (cons (car key))
-                       (effective-slot-definition
-                        (slot-definition-name key)))))
+                        (cons (car key))
+                        (effective-slot-definition
+                         (slot-definition-name key)))))
       (when slot-name
         (setf search-key
               (or (find slot-name slots
@@ -156,5 +156,5 @@
 
 (defmethod initialize-instance :after ((class storable-class) &key)
   (when (class-storage class)
-   (pushnew class (storage-data (class-storage class)) :test #'eq))
+    (pushnew class (storage-data (class-storage class)) :test #'eq))
   (assign-id-to-class class))
