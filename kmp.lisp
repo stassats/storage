@@ -27,7 +27,9 @@
 (declaim (inline reverse-case))
 (defun reverse-case (string)
   (declare (simple-string string)
-           (optimize speed))
+           (optimize speed)
+           #+sbcl
+           (sb-ext:muffle-conditions sb-ext:compiler-note))
   (let ((reversed (make-string (length string))))
     (loop for char across string
           for i from 0

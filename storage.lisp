@@ -78,10 +78,11 @@
     (setf (id object) -1))
   t)
 
-(defun map-data (function)
+(defun map-data (function &key (type t))
   (dolist (class (storage-data *storage*))
-    (funcall function
-             class (objects-of-class class))))
+    (when (subtypep class type)
+      (funcall function
+               class (objects-of-class class)))))
 
 (defun map-type (type function)
   (let ((type (if (eql type t)
@@ -151,12 +152,10 @@
                          (function
                           `(funcall ,value ,slot))
                          (string
-                          (if (= (length value) 1)
-                              `(find ,(char value 0) ,slot :test #'char-equal)
-                              (let ((reversed (reverse-case value)))
-                                `(and ,slot
-                                      (do-kmp ,value ,reversed
-                                              ,slot ,(build-table value reversed))))))
+                          (let ((reversed (reverse-case value)))
+                            `(and (string-p ,slot)
+                                  (do-kmp ,value ,reversed
+                                          ,slot ,(build-table value reversed)))))
                          (t
                           `(equalp ,value ,slot))))
                      slots values)))))))
