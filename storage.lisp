@@ -153,7 +153,7 @@
                           `(funcall ,value ,slot))
                          (string
                           (let ((reversed (reverse-case value)))
-                            `(and (string-p ,slot)
+                            `(and (stringp ,slot)
                                   (do-kmp ,value ,reversed
                                           ,slot ,(build-table value reversed)))))
                          (t
