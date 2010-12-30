@@ -10,7 +10,11 @@
          :accessor storage-data)
    (file :initform nil
          :initarg :file
-         :accessor storage-file)))
+         :accessor storage-file)
+   (indexes :initform (make-hash-table)
+            :accessor indexes)
+   (last-id :initform -1
+            :accessor last-id)))
 
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil

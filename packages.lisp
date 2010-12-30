@@ -29,5 +29,6 @@
    #:search-key
    #:make-kmp-searcher
    #:count
-   #:slot-unit))
+   #:slot-unit
+   #:storage-file))
 

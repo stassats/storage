@@ -316,9 +316,10 @@
 
 (defreader identifiable (stream)
   (let ((id (read-n-bytes +id-length+ stream))
-        (class-id (read-n-bytes 1 stream)))
-    (or (gethash id *indexes*)
-        (setf (gethash id *indexes*)
+        (class-id (read-n-bytes 1 stream))
+        (index (indexes *storage*)))
+    (or (gethash id index)
+        (setf (gethash id index)
               (make-instance (find-class-by-id class-id)
                              :id id)))))
 
@@ -355,9 +356,10 @@
 
 (declaim (inline get-instance))
 (defun get-instance (id class)
-  (or (gethash id *indexes*)
-      (setf (gethash id *indexes*)
-            (make-instance class :id id))))
+  (let ((index (indexes *storage*)))
+    (or (gethash id index)
+        (setf (gethash id index)
+              (make-instance class :id id)))))
 
 (defreader standard-object (stream)
   (let* ((class (find-class-by-id (read-n-bytes 1 stream)))
@@ -369,7 +371,7 @@
           do (setf (slot-value-using-class class instance
                                            (aref slots slot-id))
                    (read-next-object stream)))
-    (setf *last-id* (max *last-id* (id instance)))
+    (setf (last-id *storage*) (max (last-id *storage*) (id instance)))
     (push instance (objects-of-class class))
     instance))
 

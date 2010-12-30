@@ -5,8 +5,6 @@
 
 (in-package #:storage)
 
-(defvar *last-id* -1)
-
 (defclass identifiable (standard-object)
   ((id :accessor id
        :initarg :id
@@ -27,19 +25,20 @@
 
 (defmethod initialize-instance :after ((object identifiable)
                                        &key id)
-  (if (integerp id)
-      (setf *last-id* (max *last-id* id))
-      (setf (id object) (incf *last-id*))))
+  (with-slots (last-id) (class-storage (class-of object))
+    (if (integerp id)
+        (setf last-id (max last-id id))
+        (setf (id object) (incf last-id)))))
 
 ;;;
 
-(defvar *indexes* (make-hash-table))
-
 (defun index-object (object)
-  (setf (gethash (id object) *indexes*) object))
+  (setf (gethash (id object)
+                 (indexes (class-storage (class-of object))))
+        object))
 
 (defun object-with-id (id)
-  (gethash id *indexes*))
+  (gethash id (indexes *storage*)))
 
 ;;;
 
@@ -122,7 +121,7 @@
 ;;;
 
 (defun clear-cashes ()
-  (clrhash *indexes*)
+  (clrhash (indexes *storage*))
   (setf *read-class-cache* #()))
 
 ;;; Data manipulations
