@@ -15,7 +15,8 @@
    (relations :initarg :relations
               :initform nil
               :accessor relations
-              :storep nil))
+              :storep nil
+              :db-type :integer))
   (:metaclass storable-class))
 
 (defgeneric relation (object type))
