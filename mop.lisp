@@ -138,10 +138,14 @@
     (setf (slot-value class 'slots-to-store)
           (coerce (remove-if-not #'store-slot-p slots)
                   'simple-vector))
-    (compute-search-key class slots)
+    (compute-search-key class)
     slots))
 
-(defun compute-search-key (class slots)
+(defun find-slot (slot-name class)
+  (find slot-name (class-slots class)
+        :key #'slot-definition-name))
+
+(defun compute-search-key (class)
   (with-slots (search-key) class
     (let* ((key (or search-key
                     (loop for superclass in (class-direct-superclasses class)
@@ -153,8 +157,7 @@
                          (slot-definition-name key)))))
       (when slot-name
         (setf search-key
-              (or (find slot-name slots
-                        :key #'slot-definition-name)
+              (or (find-slot slot-name class)
                   (error "Search key ~a for an uknown slot in class ~a"
                          slot-name class)))))))
 

@@ -30,5 +30,6 @@
    #:make-kmp-searcher
    #:count
    #:slot-unit
-   #:storage-file))
+   #:storage-file
+   #:find-slot))
 
