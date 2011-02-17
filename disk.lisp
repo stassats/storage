@@ -326,12 +326,12 @@
 ;;; standard-object
 
 (defun standard-object-size (object)
-  (let* ((class (class-of object)))
+  (let ((slots (slot-locations-and-initiforms (class-of object))))
+    (declare (simple-vector slots))
     (+ 1           ;; data type
        1           ;; class id
        +id-length+ ;; id
-       (loop  for (location . initform)
-             across (slot-locations-and-initiforms class)
+       (loop for (location . initform) across slots
              sum (let ((value (standard-instance-access object
                                                         location)))
                    (if (eql value initform)
@@ -344,16 +344,17 @@
 ;;; writing a pointer to a standard object
 (defun write-standard-object (object stream)
   (write-n-bytes #.(type-code 'standard-object) 1 stream)
-  (let ((class (class-of object)))
+  (let* ((class (class-of object))
+         (slots (slot-locations-and-initiforms class)))
+    (declare (simple-vector slots))
     (write-n-bytes (class-id class) 1 stream)
     (write-n-bytes (id object) +id-length+ stream)
-    (loop for (location . initform)
-          across (slot-locations-and-initiforms class)
-          for i from 0
+    (loop for id below (length slots)
+          for (location . initform) = (aref slots id)
           for value = (standard-instance-access object location)
           unless (eql value initform)
           do
-          (write-n-bytes i 1 stream)
+          (write-n-bytes id 1 stream)
           (write-object value stream))
     (write-n-bytes +end-of-slots+ 1 stream)))
 
