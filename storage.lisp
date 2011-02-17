@@ -16,6 +16,7 @@
               :initform nil
               :accessor relations
               :storep nil
+              :read-only-p t
               :db-type :integer))
   (:metaclass storable-class))
 

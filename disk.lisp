@@ -327,12 +327,14 @@
 
 (defun standard-object-size (object)
   (let* ((class (class-of object)))
-    (+ 1                ;; data type
-       1                ;; class id
+    (+ 1           ;; data type
+       1           ;; class id
        +id-length+ ;; id
-       (loop for slot-def across (slots-to-store class)
-             sum (let ((value (slot-value-using-class class object slot-def)))
-                   (if (eql value (slot-definition-initform slot-def))
+       (loop  for (location . initform)
+             across (slot-locations-and-initiforms class)
+             sum (let ((value (standard-instance-access object
+                                                        location)))
+                   (if (eql value initform)
                        0
                        (+ 1 ;; slot id
                           (object-size value)))))
@@ -345,10 +347,11 @@
   (let ((class (class-of object)))
     (write-n-bytes (class-id class) 1 stream)
     (write-n-bytes (id object) +id-length+ stream)
-    (loop for slot-def across (slots-to-store class)
+    (loop for (location . initform)
+          across (slot-locations-and-initiforms class)
           for i from 0
-          for value = (slot-value-using-class class object slot-def)
-          unless (eql value (slot-definition-initform slot-def))
+          for value = (standard-instance-access object location)
+          unless (eql value initform)
           do
           (write-n-bytes i 1 stream)
           (write-object value stream))

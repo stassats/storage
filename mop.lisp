@@ -19,6 +19,8 @@
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil
                    :accessor slots-to-store)
+   (slot-locations-and-initiforms :initform nil
+                   :accessor slot-locations-and-initiforms)
    (class-id :initform 0
              :accessor class-id)
    (objects :initform nil
@@ -134,10 +136,14 @@
     effective-definition))
 
 (defmethod compute-slots :around ((class storable-class))
-  (let ((slots (call-next-method)))
-    (setf (slot-value class 'slots-to-store)
-          (coerce (remove-if-not #'store-slot-p slots)
-                  'simple-vector))
+  (let* ((slots (call-next-method))
+         (slots-to-store (coerce (remove-if-not #'store-slot-p slots)
+                                 'simple-vector) ))
+    (setf (slot-value class 'slots-to-store) slots-to-store
+          (slot-value class 'slot-locations-and-initiforms)
+          (map 'vector (lambda (slot)
+                         (cons (slot-definition-location slot)
+                               (slot-definition-initform slot))) slots-to-store))
     (compute-search-key class slots)
     slots))
 
