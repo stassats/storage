@@ -12,9 +12,7 @@
          :initarg :file
          :accessor storage-file)
    (indexes :initform nil
-            :accessor indexes)
-   (last-id :initform -1
-            :accessor last-id)))
+            :accessor indexes)))
 
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil

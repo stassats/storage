@@ -30,6 +30,7 @@
 (defvar *storage* nil)
 
 (defvar *read-class-cache* #())
+(declaim (simple-vector *read-class-cache*))
 
 (defun grow-read-cache (id)
   (let ((new-cache (make-array (+ id 10) :initial-element nil)))

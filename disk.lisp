@@ -26,7 +26,7 @@
     (position type *codes*)))
 
 (defvar *code-functions* (make-array (length *codes*)))
-(declaim (type (simple-array function (*))))
+(declaim (type simple-vector *code-functions*))
 
 (defmacro defreader (type (stream) &body body)
   (let ((name (intern (format nil "~a-~a" type '#:reader))))
@@ -78,8 +78,19 @@
                         (standard-object-size object)))))
     result))
 
+(defun assign-ids ()
+  (let ((last-id 0))
+    (declare (fixnum last-id))
+    (map-data
+     (lambda (class objects)
+       (declare (ignore class))
+       (dolist (object objects)
+         (setf (id object) last-id)
+         (incf last-id))))
+    last-id))
+
 (defun dump-data (stream)
-  (write-n-bytes (last-id *storage*) +id-length+ stream)
+  (write-n-bytes (assign-ids) +id-length+ stream)
   (map-data (lambda (class objects)
               (declare (ignore objects))
               (write-object class stream)))
@@ -323,11 +334,8 @@
 ;;; standard-object
 
 (defun standard-object-size (object)
-  (let ((storage *storage*)
-        (slots (slot-locations-and-initiforms (class-of object))))
+  (let ((slots (slot-locations-and-initiforms (class-of object))))
     (declare (simple-vector slots))
-    (setf (id object) (last-id storage))
-    (incf (last-id storage))
     (+ 1           ;; data type
        1           ;; class id
        +id-length+ ;; id
@@ -367,6 +375,7 @@
 
 (defun get-instance (id class)
   (let ((index (indexes *storage*)))
+    (declare (simple-vector index))
     (or (aref index id)
         (setf (aref index id)
               (initialize-slots (allocate-instance class) class)))))
@@ -389,11 +398,14 @@
 
 (defun read-file (file)
   (with-io-file (stream file)
-    (setf (indexes *storage*)
-          (make-array (read-n-bytes +id-length+ stream)
-                      :initial-element nil))
-    (loop until (stream-end-of-file-p stream)
-          do (read-next-object stream))))
+    (unwind-protect
+         (progn
+           (setf (indexes *storage*)
+                 (make-array (read-n-bytes +id-length+ stream)
+                             :initial-element nil))
+           (loop until (stream-end-of-file-p stream)
+                 do (read-next-object stream)))
+      (setf (indexes *storage*) nil))))
 
 (defun load-data (storage &optional file)
   (let ((*storage* storage))
@@ -406,7 +418,6 @@
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
     (when (storage-data storage)
-      (setf (last-id storage) 0)
       (with-io-file (stream (or file (storage-file storage))
                             :direction :output
                             :size (measure-size))
