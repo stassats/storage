@@ -369,11 +369,12 @@
   (let* ((class (find-class-by-id (read-n-bytes 1 stream)))
          (id (read-n-bytes +id-length+ stream))
          (instance (get-instance id class))
-         (slots (slots-to-store class)))
+         (slots (slot-locations-and-initiforms class)))
+    (declare (simple-vector slots))
     (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end-of-slots+)
-          do (setf (slot-value-using-class class instance
-                                           (aref slots slot-id))
+          do (setf (standard-instance-access instance
+                                             (car (aref slots slot-id)))
                    (read-next-object stream)))
     (setf (last-id *storage*) (max (last-id *storage*) (id instance)))
     (push instance (objects-of-class class))
