@@ -316,12 +316,8 @@
 
 (defreader identifiable (stream)
   (let ((id (read-n-bytes +id-length+ stream))
-        (class-id (read-n-bytes 1 stream))
-        (index (indexes *storage*)))
-    (or (gethash id index)
-        (setf (gethash id index)
-              (make-instance (find-class-by-id class-id)
-                             :id id)))))
+        (class-id (read-n-bytes 1 stream)))
+    (get-instance id (find-class-by-id class-id))))
 
 ;;; standard-object
 
