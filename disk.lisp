@@ -70,7 +70,7 @@
 (defgeneric object-size (object))
 
 (defun measure-size ()
-  (let ((result 0))
+  (let ((result +id-length+))
     (map-data (lambda (class objects)
                 (incf result (object-size class))
                 (dolist (object objects)
@@ -79,6 +79,7 @@
     result))
 
 (defun dump-data (stream)
+  (write-n-bytes (last-id *storage*) +id-length+ stream)
   (map-data (lambda (class objects)
               (declare (ignore objects))
               (write-object class stream)))
@@ -322,8 +323,11 @@
 ;;; standard-object
 
 (defun standard-object-size (object)
-  (let ((slots (slot-locations-and-initiforms (class-of object))))
+  (let ((storage *storage*)
+        (slots (slot-locations-and-initiforms (class-of object))))
     (declare (simple-vector slots))
+    (setf (id object) (last-id storage))
+    (incf (last-id storage))
     (+ 1           ;; data type
        1           ;; class id
        +id-length+ ;; id
@@ -362,8 +366,8 @@
 
 (defun get-instance (id class)
   (let ((index (indexes *storage*)))
-    (or (gethash id index)
-        (setf (gethash id index)
+    (or (aref index id)
+        (setf (aref index id)
               (let ((new (allocate-instance class)))
                 (initialize-slots new class)
                 (setf (id new) id)
@@ -380,7 +384,6 @@
           do (setf (standard-instance-access instance
                                              (car (aref slots slot-id)))
                    (read-next-object stream)))
-    (setf (last-id *storage*) (max (last-id *storage*) (id instance)))
     (push instance (objects-of-class class))
     instance))
 
@@ -388,6 +391,9 @@
 
 (defun read-file (file)
   (with-io-file (stream file)
+    (setf (indexes *storage*)
+          (make-array (read-n-bytes +id-length+ stream)
+                      :initial-element nil))
     (loop until (stream-end-of-file-p stream)
           do (read-next-object stream))))
 
@@ -401,8 +407,9 @@
 
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
-    (when (storage-data *storage*)
-      (with-io-file (stream (or file (storage-file *storage*))
+    (when (storage-data storage)
+      (setf (last-id storage) 0)
+      (with-io-file (stream (or file (storage-file storage))
                             :direction :output
                             :size (measure-size))
         (dump-data stream)))))

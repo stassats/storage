@@ -25,26 +25,9 @@
 (defmethod relation (object type)
   (getf (relations object) type))
 
-(defmethod initialize-instance :after ((object identifiable)
-                                       &key id)
-  (with-slots (last-id) (class-storage (class-of object))
-    (if (integerp id)
-        (setf last-id (max last-id id))
-        (setf (id object) (incf last-id)))))
-
 ;;;
 
 (defvar *storage* nil)
-
-(defun index-object (object)
-  (setf (gethash (id object)
-                 (indexes (class-storage (class-of object))))
-        object))
-
-(defun object-with-id (id)
-  (gethash id (indexes *storage*)))
-
-;;;
 
 (defvar *read-class-cache* #())
 
@@ -123,7 +106,6 @@
 ;;;
 
 (defun clear-cashes ()
-  (clrhash (indexes *storage*))
   (setf *read-class-cache* #()))
 
 ;;; Data manipulations
@@ -136,7 +118,6 @@
 (defmethod add ((object identifiable) &key)
   (store-object object)
   (storage:interlink-objects object)
-  (index-object object)
   object)
 
 (defun where (&rest clauses)

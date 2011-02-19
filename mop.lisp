@@ -11,7 +11,7 @@
    (file :initform nil
          :initarg :file
          :accessor storage-file)
-   (indexes :initform (make-hash-table)
+   (indexes :initform nil
             :accessor indexes)
    (last-id :initform -1
             :accessor last-id)))
@@ -21,6 +21,8 @@
                    :accessor slots-to-store)
    (slot-locations-and-initiforms :initform nil
                    :accessor slot-locations-and-initiforms)
+   (all-slot-locations-and-initiforms :initform nil
+                   :accessor all-slot-locations-and-initiforms)
    (class-id :initform 0
              :accessor class-id)
    (objects :initform nil
@@ -31,9 +33,6 @@
    (search-key :initform nil
                :initarg :search-key
                :accessor search-key)))
-
-(declaim (ftype (function (t) simple-vector)
-                slots-to-store))
 
 (defun initialize-storable-class (next-method class &rest args
                                   &key direct-superclasses &allow-other-keys)
@@ -136,16 +135,20 @@
     effective-definition))
 
 (defmethod compute-slots :around ((class storable-class))
-  (let* ((slots (call-next-method))
-         (slots-to-store (coerce (remove-if-not #'store-slot-p slots)
-                                 'simple-vector) ))
-    (setf (slot-value class 'slots-to-store) slots-to-store
-          (slot-value class 'slot-locations-and-initiforms)
-          (map 'vector (lambda (slot)
-                         (cons (slot-definition-location slot)
-                               (slot-definition-initform slot))) slots-to-store))
-    (compute-search-key class slots)
-    slots))
+  (flet ((location-and-initform (slot)
+           (cons (slot-definition-location slot)
+                 (slot-definition-initform slot))))
+    (let* ((slots (call-next-method))
+           (slots-to-store (coerce (remove-if-not #'store-slot-p slots)
+                                   'simple-vector) ))
+    
+      (setf (slot-value class 'slots-to-store) slots-to-store
+            (slot-value class 'slot-locations-and-initiforms)
+            (map 'vector #'location-and-initform slots-to-store)
+            (slot-value class 'all-slot-locations-and-initiforms)
+            (map 'vector #'location-and-initform slots))
+      (compute-search-key class slots)
+      slots)))
 
 (defun find-slot (slot-name class)
   (find slot-name (class-slots class)
