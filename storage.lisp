@@ -100,7 +100,8 @@
           for relation-name = (slot-relation slot)
           when relation-name
           do (interlink-slots object
-                              (slot-value-using-class class object slot)
+                              (standard-instance-access
+                               object (slot-definition-location slot))
                               relation-name))))
 
 ;;;
