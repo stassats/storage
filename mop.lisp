@@ -132,21 +132,26 @@
             unit (slot-unit direct-definition)))
     effective-definition))
 
-(defmethod compute-slots :around ((class storable-class))
+(defmethod compute-slots ((class storable-class))
+  (let* ((slots (call-next-method))
+         (to-store (remove-if-not #'store-slot-p slots)))
+    (append (sort (copy-list to-store)
+                  #'string< :key #'slot-definition-name)
+            (remove-if #'store-slot-p slots))))
+
+(defmethod finalize-inheritance :after ((class storable-class))
   (flet ((location-and-initform (slot)
            (cons (slot-definition-location slot)
                  (slot-definition-initform slot))))
-    (let* ((slots (call-next-method))
+    (let* ((slots (class-slots class))
            (slots-to-store (coerce (remove-if-not #'store-slot-p slots)
                                    'simple-vector) ))
-    
       (setf (slot-value class 'slots-to-store) slots-to-store
             (slot-value class 'slot-locations-and-initiforms)
             (map 'vector #'location-and-initform slots-to-store)
             (slot-value class 'all-slot-locations-and-initiforms)
             (map 'vector #'location-and-initform slots))
-      (compute-search-key class slots)
-      slots)))
+      (compute-search-key class slots))))
 
 (defun find-slot (slot-name class)
   (find slot-name (class-slots class)
