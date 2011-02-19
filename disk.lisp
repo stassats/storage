@@ -354,12 +354,20 @@
           (write-object value stream))
     (write-n-bytes +end-of-slots+ 1 stream)))
 
-(declaim (inline get-instance))
+(defun initialize-slots (instance class)
+  (loop for (location . value)
+        across (the simple-vector (all-slot-locations-and-initiforms class))
+        do (setf (standard-instance-access instance location)
+                 value)))
+
 (defun get-instance (id class)
   (let ((index (indexes *storage*)))
     (or (gethash id index)
         (setf (gethash id index)
-              (make-instance class :id id)))))
+              (let ((new (allocate-instance class)))
+                (initialize-slots new class)
+                (setf (id new) id)
+                new)))))
 
 (defreader standard-object (stream)
   (let* ((class (find-class-by-id (read-n-bytes 1 stream)))
