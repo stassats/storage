@@ -34,6 +34,8 @@
 
 ;;;
 
+(defvar *storage* nil)
+
 (defun index-object (object)
   (setf (gethash (id object)
                  (indexes (class-storage (class-of object))))
@@ -43,8 +45,6 @@
   (gethash id (indexes *storage*)))
 
 ;;;
-
-(defvar *storage* nil)
 
 (defvar *read-class-cache* #())
 
