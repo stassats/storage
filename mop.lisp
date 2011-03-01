@@ -165,14 +165,13 @@
                                        (search-key superclass)))))
            (slot-name (typecase key
                         (cons (car key))
-                        (effective-slot-definition
-                         (slot-definition-name key)))))
+                        (symbol key))))
+      (setf search-key slot-name)
       (when slot-name
-        (setf search-key
-              (or (find slot-name slots
-                        :key #'slot-definition-name)
-                  (error "Search key ~a for an uknown slot in class ~a"
-                         slot-name class)))))))
+        (unless (find slot-name slots :key #'slot-definition-name)
+          (setf search-key nil)
+          (error "Search key ~a for an uknown slot in class ~a"
+                 slot-name class))))))
 
 (defmethod initialize-instance :after ((class storable-class) &key)
   (when (class-storage class)
