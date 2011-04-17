@@ -17,10 +17,14 @@
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil
                    :accessor slots-to-store)
-   (slot-locations-and-initiforms :initform nil
-                   :accessor slot-locations-and-initiforms)
-   (all-slot-locations-and-initiforms :initform nil
-                   :accessor all-slot-locations-and-initiforms)
+   (slot-locations-and-initiforms
+    :initform nil
+    :accessor slot-locations-and-initiforms)
+   (all-slot-locations-and-initiforms
+    :initform nil
+    :accessor all-slot-locations-and-initiforms)
+   (initforms :initform nil
+	      :accessor class-initforms)
    (class-id :initform 0
              :accessor class-id)
    (objects :initform nil
@@ -144,7 +148,9 @@
 	(make-slots-cache (slots-to-store class)))
   (unless slots-to-store-only
     (setf (slot-value class 'all-slot-locations-and-initiforms)
-	  (make-slots-cache (class-slots class)))))
+	  (make-slots-cache (class-slots class))
+	  (class-initforms class)
+	  (map 'vector #'slot-definition-initform (class-slots class)))))
 
 (defmethod finalize-inheritance :after ((class storable-class))
   (let ((slots (class-slots class)))
