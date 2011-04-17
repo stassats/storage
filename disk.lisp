@@ -313,7 +313,7 @@
                      (slot-effective-definition class
                                                 (read-next-object stream))))
       (setf (slots-to-store class) vector)
-      (initialize-class-slots class))
+      (initialize-class-slots class :slots-to-store-only t))
     class))
 
 ;;; identifiable
