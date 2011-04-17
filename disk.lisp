@@ -312,7 +312,8 @@
             do (setf (aref vector i)
                      (slot-effective-definition class
                                                 (read-next-object stream))))
-      (setf (slots-to-store class) vector))
+      (setf (slots-to-store class) vector)
+      (initialize-class-slots class))
     class))
 
 ;;; identifiable

@@ -132,19 +132,27 @@
             unit (slot-unit direct-definition)))
     effective-definition))
 
+(defun make-slots-cache (slot-definitions)
+  (map 'vector
+       (lambda (slot-definition)
+	 (cons (slot-definition-location slot-definition)
+	       (slot-definition-initform slot-definition)))
+       slot-definitions))
+
+(defun initialize-class-slots (class &key slots-to-store-only)
+  (setf (slot-value class 'slot-locations-and-initiforms)
+	(make-slots-cache (slots-to-store class)))
+  (unless slots-to-store-only
+    (setf (slot-value class 'all-slot-locations-and-initiforms)
+	  (make-slots-cache (class-slots class)))))
+
 (defmethod finalize-inheritance :after ((class storable-class))
-  (flet ((location-and-initform (slot)
-           (cons (slot-definition-location slot)
-                 (slot-definition-initform slot))))
-    (let* ((slots (class-slots class))
-           (slots-to-store (coerce (remove-if-not #'store-slot-p slots)
-                                   'simple-vector) ))
-      (setf (slot-value class 'slots-to-store) slots-to-store
-            (slot-value class 'slot-locations-and-initiforms)
-            (map 'vector #'location-and-initform slots-to-store)
-            (slot-value class 'all-slot-locations-and-initiforms)
-            (map 'vector #'location-and-initform slots))
-      (compute-search-key class slots))))
+  (let ((slots (class-slots class)))
+    (setf (slot-value class 'slots-to-store)
+	  (coerce (remove-if-not #'store-slot-p slots)
+		  'simple-vector))
+    (initialize-class-slots class)
+    (compute-search-key class slots)))
 
 (defun find-slot (slot-name class)
   (find slot-name (class-slots class)
