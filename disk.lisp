@@ -70,7 +70,8 @@
 (defgeneric object-size (object))
 
 (defun measure-size ()
-  (let ((result +id-length+))
+  (let ((result (+ +id-length+		;; number of objects
+		   +sequence-length+))) ;; number of classes
     (map-data (lambda (class objects)
                 (incf result (object-size class))
                 (dolist (object objects)
@@ -89,11 +90,17 @@
          (incf last-id))))
     last-id))
 
-(defun dump-data (stream)
+(defun write-classes-info (stream)
   (write-n-bytes (assign-ids) +id-length+ stream)
+  (write-n-bytes (length (storage-data *storage*))
+		 +sequence-length+ stream)
   (map-data (lambda (class objects)
-              (declare (ignore objects))
-              (write-object class stream)))
+              (write-object class stream)
+	      (write-n-bytes (length objects)
+			     +id-length+ stream))))
+
+(defun dump-data (stream)
+  (write-classes-info stream)
   (map-data (lambda (class objects)
               (declare (ignore class))
               (dolist (object objects)
@@ -284,7 +291,8 @@
      +sequence-length+ ;; list length
      (reduce #'+ (slots-to-store class)
              :key (lambda (x)
-                    (object-size (slot-definition-name x))))))
+                    (object-size (slot-definition-name x))))
+     +id-length+)) ;; size of objects
 
 (defmethod write-object ((class storable-class) stream)
   (write-n-bytes #.(type-code 'storable-class) 1 stream)
@@ -319,18 +327,16 @@
 ;;; identifiable
 
 (defmethod object-size ((object identifiable))
-  (+ 2 ;; type + class id
+  (+ 1 ;; type
      +id-length+))
 
 (defmethod write-object ((object identifiable) stream)
   (write-n-bytes #.(type-code 'identifiable) 1 stream)
-  (write-n-bytes (id object) +id-length+ stream)
-  (write-n-bytes (class-id (class-of object)) 1 stream))
+  (write-n-bytes (id object) +id-length+ stream))
 
 (defreader identifiable (stream)
-  (let ((id (read-n-bytes +id-length+ stream))
-        (class-id (read-n-bytes 1 stream)))
-    (get-instance id (find-class-by-id class-id))))
+  (let ((id (read-n-bytes +id-length+ stream)))
+    (get-instance id)))
 
 ;;; standard-object
 
@@ -338,7 +344,6 @@
   (let ((slots (slot-locations-and-initiforms (class-of object))))
     (declare (simple-vector slots))
     (+ 1           ;; data type
-       1           ;; class id
        +id-length+ ;; id
        (loop for (location . initform) across slots
              sum (let ((value (standard-instance-access object
@@ -356,7 +361,6 @@
   (let* ((class (class-of object))
          (slots (slot-locations-and-initiforms class)))
     (declare (simple-vector slots))
-    (write-n-bytes (class-id class) 1 stream)
     (write-n-bytes (id object) +id-length+ stream)
     (loop for id below (length slots)
           for (location . initform) = (aref slots id)
@@ -367,24 +371,15 @@
           (write-object value stream))
     (write-n-bytes +end-of-slots+ 1 stream)))
 
-(defun initialize-slots (instance class)
-  (loop for (location . value)
-        across (the simple-vector (all-slot-locations-and-initiforms class))
-        do (setf (standard-instance-access instance location)
-                 value))
-  instance)
-
-(defun get-instance (id class)
+(defun get-instance (id)
   (let ((index (indexes *storage*)))
     (declare (simple-vector index))
-    (or (aref index id)
-        (setf (aref index id)
-              (initialize-slots (allocate-instance class) class)))))
+    (aref index id)))
 
 (defreader standard-object (stream)
-  (let* ((class (find-class-by-id (read-n-bytes 1 stream)))
-         (id (read-n-bytes +id-length+ stream))
-         (instance (get-instance id class))
+  (let* ((instance (get-instance
+		    (read-n-bytes +id-length+ stream)))
+	 (class (class-of instance))
          (slots (slot-locations-and-initiforms class)))
     (declare (simple-vector slots))
     (loop for slot-id = (read-n-bytes 1 stream)
@@ -397,15 +392,65 @@
 
 ;;;
 
+(defun initialize-slots (instance slot-cache)
+  (loop for (location . value)
+        across slot-cache
+        do (setf (standard-instance-access instance location)
+                 value))
+  instance)
+
+#+sbcl (declaim (inline fast-allocate-instance))
+
+#+sbcl
+(defun fast-allocate-instance (wrapper initforms)
+  (declare (simple-vector initforms))
+  (let ((instance (sb-pcl::%make-standard-instance
+		   (copy-seq initforms) (sb-pcl::get-instance-hash-code))))
+    (setf (sb-pcl::std-instance-wrapper instance)
+	  wrapper)
+    instance))
+
+#+sbcl
+(defun preallocate-objects (array info)
+  (declare (simple-vector array))
+  (loop with index = 0
+	for (class . length) in info
+	for initforms = (class-initforms class)
+	for wrapper = (sb-pcl::class-wrapper class)
+	do (loop repeat length
+		 for instance = (fast-allocate-instance wrapper initforms)
+		 do
+		 (setf (aref array index) instance)
+		 (incf index))))
+
+#-sbcl
+(defun preallocate-objects (array info)
+  (declare (simple-array array))
+  (loop with index = 0
+	for (class . length) in info
+	for slot-cache = (all-slot-locations-and-initiforms class)
+	do (loop repeat length
+		 for instance = (allocate-instance class)
+		 do (initialize-slots instance slot-cache)
+		 (setf (aref array index) instance)
+		 (incf index))))
+
+(defun prepare-classes (stream)
+  (let ((array (make-array (read-n-bytes +id-length+ stream)
+			   :initial-element nil)))
+    (setf (indexes *storage*) array)
+    (loop repeat (read-n-bytes +sequence-length+ stream)
+	  for class = (read-next-object stream)
+	  for length = (read-n-bytes +id-length+ stream)
+	  collect (cons class length) into info
+	  finally (preallocate-objects array info))))
+
 (defun read-file (file)
   (with-io-file (stream file)
     (unwind-protect
-         (progn
-           (setf (indexes *storage*)
-                 (make-array (read-n-bytes +id-length+ stream)
-                             :initial-element nil))
-           (loop until (stream-end-of-file-p stream)
-                 do (read-next-object stream)))
+	 (progn (prepare-classes stream)
+		(loop until (stream-end-of-file-p stream)
+		      do (read-next-object stream)))
       (setf (indexes *storage*) nil))))
 
 (defun load-data (storage &optional file)
@@ -413,8 +458,8 @@
     (clear-cashes)
     (read-file (or file (storage-file *storage*)))
     (map-data (lambda (type objects)
-                (declare (ignore type))
-                (mapc #'interlink-objects objects)))))
+		(declare (ignore type))
+		(mapc #'interlink-objects objects)))))
 
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
