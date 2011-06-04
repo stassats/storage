@@ -463,9 +463,7 @@
   (let ((*storage* storage))
     (clear-cashes)
     (read-file (or file (storage-file *storage*)))
-    (map-data (lambda (type objects)
-        	(declare (ignore type))
-        	(mapc #'interlink-objects objects)))))
+    (interlink-all-objects)))
 
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
