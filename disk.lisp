@@ -388,7 +388,6 @@
           do (setf (standard-instance-access instance
                                              (car (aref slots slot-id)))
                    (read-next-object stream)))
-    (push instance (objects-of-class class))
     instance))
 
 ;;;
@@ -418,11 +417,14 @@
 	for (class . length) in info
 	for initforms = (class-initforms class)
 	for wrapper = (sb-pcl::class-wrapper class)
-	do (loop repeat length
-		 for instance = (fast-allocate-instance wrapper initforms)
-		 do
-		 (setf (aref array index) instance)
-		 (incf index))))
+        do
+        (setf (objects-of-class class)
+              (loop repeat length
+                    for instance = (fast-allocate-instance wrapper initforms)
+                    collect instance
+                    do
+                    (setf (aref array index) instance)
+                    (incf index)))))
 
 #-sbcl
 (defun preallocate-objects (array info)
@@ -430,11 +432,14 @@
   (loop with index = 0
 	for (class . length) in info
 	for slot-cache = (all-slot-locations-and-initforms class)
-	do (loop repeat length
-		 for instance = (allocate-instance class)
-		 do (initialize-slots instance slot-cache)
-		 (setf (aref array index) instance)
-		 (incf index))))
+	do
+        (setf (objects-of-class class)
+              (loop repeat length
+                    for instance = (allocate-instance class)
+                    collect instance
+                    do (initialize-slots instance slot-cache)
+                       (setf (aref array index) instance)
+                       (incf index)))))
 
 (defun prepare-classes (stream)
   (let ((array (make-array (read-n-bytes +id-length+ stream)
@@ -459,8 +464,8 @@
     (clear-cashes)
     (read-file (or file (storage-file *storage*)))
     (map-data (lambda (type objects)
-		(declare (ignore type))
-		(mapc #'interlink-objects objects)))))
+        	(declare (ignore type))
+        	(mapc #'interlink-objects objects)))))
 
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
