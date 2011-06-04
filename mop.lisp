@@ -184,3 +184,25 @@
   (when (class-storage class)
     (pushnew class (storage-data (class-storage class)) :test #'eq))
   (assign-id-to-class class))
+
+;;;
+
+(defclass identifiable (standard-object)
+  ((id :accessor id
+       :initarg :id
+       :initform nil
+       :storep nil
+       :read-only-p t
+       :db-type :integer)
+   (relations :initarg :relations
+              :initform nil
+              :accessor relations
+              :storep nil
+              :read-only-p t
+              :db-type :integer))
+  (:metaclass storable-class))
+
+(defgeneric relation (object type))
+
+(defmethod relation (object type)
+  (getf (relations object) type))

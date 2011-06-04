@@ -5,28 +5,6 @@
 
 (in-package #:storage)
 
-(defclass identifiable (standard-object)
-  ((id :accessor id
-       :initarg :id
-       :initform nil
-       :storep nil
-       :read-only-p t
-       :db-type :integer)
-   (relations :initarg :relations
-              :initform nil
-              :accessor relations
-              :storep nil
-              :read-only-p t
-              :db-type :integer))
-  (:metaclass storable-class))
-
-(defgeneric relation (object type))
-
-(defmethod relation (object type)
-  (getf (relations object) type))
-
-;;;
-
 (defvar *storage* nil)
 
 (defvar *read-class-cache* #())
@@ -86,24 +64,36 @@
 
 ;;;
 
+(defmacro do-maybe-list ((var maybe-list) &body body)
+  (let ((function-name (gensym))
+        (list-name (gensym)))
+    `(let ((,list-name ,maybe-list))
+       (flet ((,function-name (,var)
+                ,@body))
+         (if (listp ,list-name)
+             (dolist (,var ,list-name)
+               (,function-name ,var))
+             (,function-name ,list-name))))))
+
 (defun interlink-slots (object slot relation-name)
-  (dolist (slot (if (listp slot)
-                    slot
-                    (list slot)))
+  (do-maybe-list (slot slot)
     (when (typep slot 'identifiable)
-      (pushnew object (getf (relations slot) relation-name)))))
+      (pushnew object (getf (relations slot) relation-name)
+               :test #'eq))))
 
 (defgeneric interlink-objects (object))
 
 (defmethod interlink-objects ((object identifiable))
-  (let ((class (class-of object)))
-    (loop for slot across (slots-to-store class)
+  (let ((slots (slots-to-store (class-of object))))
+    (declare (simple-vector slots))
+    (loop for slot across slots
           for relation-name = (slot-relation slot)
           when relation-name
-          do (interlink-slots object
-                              (standard-instance-access
-                               object (slot-definition-location slot))
-                              relation-name))))
+          do
+          (interlink-slots object
+                           (standard-instance-access
+                            object (slot-definition-location slot))
+                           relation-name))))
 
 ;;;
 

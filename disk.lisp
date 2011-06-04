@@ -334,6 +334,12 @@
   (write-n-bytes #.(type-code 'identifiable) 1 stream)
   (write-n-bytes (id object) +id-length+ stream))
 
+(declaim (inline get-instance))
+(defun get-instance (id)
+  (let ((index (indexes *storage*)))
+    (declare (simple-vector index))
+    (aref index id)))
+
 (defreader identifiable (stream)
   (let ((id (read-n-bytes +id-length+ stream)))
     (get-instance id)))
@@ -370,11 +376,6 @@
           (write-n-bytes id 1 stream)
           (write-object value stream))
     (write-n-bytes +end-of-slots+ 1 stream)))
-
-(defun get-instance (id)
-  (let ((index (indexes *storage*)))
-    (declare (simple-vector index))
-    (aref index id)))
 
 (defreader standard-object (stream)
   (let* ((instance (get-instance
