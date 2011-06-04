@@ -75,8 +75,8 @@
                (,function-name ,var))
              (,function-name ,list-name))))))
 
-(defun interlink-slots (object slot relation-name)
-  (do-maybe-list (slot slot)
+(defun interlink-slots (object slot-value relation-name)
+  (do-maybe-list (slot slot-value)
     (when (typep slot 'identifiable)
       (pushnew object (getf (relations slot) relation-name)
                :test #'eq))))

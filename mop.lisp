@@ -17,12 +17,12 @@
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil
                    :accessor slots-to-store)
-   (slot-locations-and-initiforms
+   (slot-locations-and-initforms
     :initform nil
-    :accessor slot-locations-and-initiforms)
-   (all-slot-locations-and-initiforms
+    :accessor slot-locations-and-initforms)
+   (all-slot-locations-and-initforms
     :initform nil
-    :accessor all-slot-locations-and-initiforms)
+    :accessor all-slot-locations-and-initforms)
    (initforms :initform nil
 	      :accessor class-initforms)
    (class-id :initform 0
@@ -144,10 +144,10 @@
        slot-definitions))
 
 (defun initialize-class-slots (class &key slots-to-store-only)
-  (setf (slot-value class 'slot-locations-and-initiforms)
+  (setf (slot-value class 'slot-locations-and-initforms)
 	(make-slots-cache (slots-to-store class)))
   (unless slots-to-store-only
-    (setf (slot-value class 'all-slot-locations-and-initiforms)
+    (setf (slot-value class 'all-slot-locations-and-initforms)
 	  (make-slots-cache (class-slots class))
 	  (class-initforms class)
 	  (map 'vector #'slot-definition-initform (class-slots class)))))

@@ -347,7 +347,7 @@
 ;;; standard-object
 
 (defun standard-object-size (object)
-  (let ((slots (slot-locations-and-initiforms (class-of object))))
+  (let ((slots (slot-locations-and-initforms (class-of object))))
     (declare (simple-vector slots))
     (+ 1           ;; data type
        +id-length+ ;; id
@@ -365,7 +365,7 @@
 (defun write-standard-object (object stream)
   (write-n-bytes #.(type-code 'standard-object) 1 stream)
   (let* ((class (class-of object))
-         (slots (slot-locations-and-initiforms class)))
+         (slots (slot-locations-and-initforms class)))
     (declare (simple-vector slots))
     (write-n-bytes (id object) +id-length+ stream)
     (loop for id below (length slots)
@@ -381,7 +381,7 @@
   (let* ((instance (get-instance
 		    (read-n-bytes +id-length+ stream)))
 	 (class (class-of instance))
-         (slots (slot-locations-and-initiforms class)))
+         (slots (slot-locations-and-initforms class)))
     (declare (simple-vector slots))
     (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end-of-slots+)
@@ -429,7 +429,7 @@
   (declare (simple-array array))
   (loop with index = 0
 	for (class . length) in info
-	for slot-cache = (all-slot-locations-and-initiforms class)
+	for slot-cache = (all-slot-locations-and-initforms class)
 	do (loop repeat length
 		 for instance = (allocate-instance class)
 		 do (initialize-slots instance slot-cache)
