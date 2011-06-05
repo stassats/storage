@@ -26,7 +26,7 @@
     (position type *codes*)))
 
 (defvar *code-functions* (make-array (length *codes*)))
-(declaim (type simple-vector *code-functions*))
+(declaim (type (simple-array function (*)) *code-functions*))
 
 (defmacro defreader (type (stream) &body body)
   (let ((name (intern (format nil "~a-~a" type '#:reader))))
@@ -36,6 +36,7 @@
        (setf (aref *code-functions* ,(type-code type))
              #',name))))
 
+(declaim (inline call-reader))
 (defun call-reader (code stream)
   ;; (collect-stats code)
   (funcall (aref *code-functions* code) stream))
@@ -141,7 +142,7 @@
      1 ;; sign
      (typecase object
        (#.`(signed-byte ,(* +fixnum-length+ 8))
-          +fixnum-length+)
+        +fixnum-length+)
        (t (+ 1 ;; size
              (* (ceiling (integer-length (abs object))
                          (* +fixnum-length+ 8)) +fixnum-length+))))))
@@ -155,8 +156,8 @@
   (write-n-bytes #.(type-code 'bignum) 1 stream)
   (write-n-bytes (if (minusp n) 1 0) 1 stream)
   (let* ((n (abs n))
-        (size (ceiling (integer-length n)
-                       (* +fixnum-length+ 8))))
+         (size (ceiling (integer-length n)
+                        (* +fixnum-length+ 8))))
     (write-n-bytes size 1 stream)
     (loop for position to size
           do
@@ -168,7 +169,7 @@
 (defmethod write-object ((object integer) stream)
   (typecase object
     (#.`(signed-byte ,(* +fixnum-length+ 8))
-       (write-fixnum object stream))
+     (write-fixnum object stream))
     (t (write-bignum object stream))))
 
 (defreader bignum (stream)
@@ -188,7 +189,7 @@
   (* (if (plusp (read-n-bytes 1 stream))
          -1
          1)
-   (read-n-bytes +fixnum-length+ stream)))
+     (read-n-bytes +fixnum-length+ stream)))
 
 ;;; Ratio
 
@@ -299,7 +300,7 @@
   (write-object (class-name class) stream)
   (write-n-bytes (class-id class) 1 stream)
   (unless (class-finalized-p class)
-      (finalize-inheritance class))
+    (finalize-inheritance class))
   (let ((slots (slots-to-store class)))
     (write-n-bytes (length slots) +sequence-length+ stream)
     (loop for slot across slots
