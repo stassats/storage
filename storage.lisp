@@ -64,20 +64,12 @@
 
 ;;;
 
-(defun slots-with-relations (class)
-  (loop for slot across (slots-to-store class)
-        for relation = (slot-relation slot)
-        when relation
-        collect (cons (slot-definition-location slot)
-                      relation)))
-
 (defun interlink-all-objects ()
   (map-data
    (lambda (class objects)
-     (loop with slots = (slots-with-relations class)
-           for object in objects
-           when slots
-           do (interlink-objects object :slots slots)))))
+     (declare (ignore class))
+     (loop for object in objects
+           do (interlink-objects object)))))
 
 (defmacro do-maybe-list ((var maybe-list) &body body)
   (let ((function-name (gensym))
@@ -96,31 +88,14 @@
       (pushnew object (getf (relations slot) relation-name)
                :test #'eq))))
 
-(defgeneric interlink-objects (object &key))
+(defgeneric interlink-objects (object))
 
-(defun interlink-objects-slow (object)
-  (let ((slots (slots-to-store (class-of object))))
-    (declare (simple-vector slots))
-    (loop for slot across slots
-          for relation-name = (slot-relation slot)
-          when relation-name
-          do
-          (interlink-slots object
-                           (standard-instance-access
-                            object (slot-definition-location slot))
-                           relation-name))))
-
-(defun interlink-objects-fast (object slots)
-  (loop for (loc . relation) in slots
+(defmethod interlink-objects ((object identifiable))
+  (loop for (loc . relation) in (class-relations (class-of object))
         do
         (interlink-slots object
                          (standard-instance-access object loc)
                          relation)))
-
-(defmethod interlink-objects ((object identifiable) &key slots)
-  (if slots
-      (interlink-objects-fast object slots)
-      (interlink-objects-slow object)))
 
 ;;;
 

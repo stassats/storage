@@ -23,6 +23,8 @@
    (all-slot-locations-and-initforms
     :initform nil
     :accessor all-slot-locations-and-initforms)
+   (relations :initform nil
+              :accessor class-relations)
    (initforms :initform nil
 	      :accessor class-initforms)
    (class-id :initform 0
@@ -136,6 +138,13 @@
             unit (slot-unit direct-definition)))
     effective-definition))
 
+(defun slots-with-relations (class)
+  (loop for slot across (slots-to-store class)
+        for relation = (slot-relation slot)
+        when relation
+        collect (cons (slot-definition-location slot)
+                      relation)))
+
 (defun make-slots-cache (slot-definitions)
   (map 'vector
        (lambda (slot-definition)
@@ -158,7 +167,8 @@
 	  (coerce (remove-if-not #'store-slot-p slots)
 		  'simple-vector))
     (initialize-class-slots class)
-    (compute-search-key class slots)))
+    (compute-search-key class slots)
+    (setf (class-relations class) (slots-with-relations class))))
 
 (defun find-slot (slot-name class)
   (find slot-name (class-slots class)
