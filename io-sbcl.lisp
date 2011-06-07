@@ -56,6 +56,9 @@
            (fixnum offset))
   (mask-field (byte 24 0) (sb-sys:sap-ref-32 sap offset)))
 
+(defun signal-end-of-file (stream)
+  (error "End of file ~a" stream))
+
 (declaim (inline advance-stream))
 (defun advance-stream (n stream)
   (declare (optimize (space 0))
@@ -64,13 +67,15 @@
          (new-position (sb-ext:truly-the word (+ sap n))))
     (when (> new-position
              (mmap-stream-end stream))
-      (error "End of file ~a" stream))
+      (signal-end-of-file stream))
     (setf (mmap-stream-sap stream) new-position)
     (sb-sys:int-sap sap)))
 
 (declaim (inline read-n-bytes))
 (defun read-n-bytes (n stream)
-  (declare (optimize (speed 3))
+  (declare (optimize speed)
+           #+sbcl
+           (sb-ext:muffle-conditions sb-ext:compiler-note)
            (type (integer 1 4) n))
   (funcall (ecase n
              (1 #'sb-sys:sap-ref-8)

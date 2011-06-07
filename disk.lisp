@@ -3,12 +3,13 @@
 (in-package #:storage)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defvar *codes* #(ascii-string
-                    identifiable cons
-                    string null symbol
-                    storable-class
-                    standard-object
-                    fixnum bignum ratio)))
+  (defparameter *codes*
+    #(ascii-string
+      identifiable cons
+      string null symbol
+      storable-class
+      standard-object
+      fixnum bignum ratio)))
 
 (declaim (type simple-vector *codes*))
 
@@ -25,7 +26,7 @@
   (defun type-code (type)
     (position type *codes*)))
 
-(defvar *code-functions* (make-array (length *codes*)))
+(defparameter *code-functions* (make-array (length *codes*)))
 (declaim (type (simple-array function (*)) *code-functions*))
 
 (defmacro defreader (type (stream) &body body)
@@ -62,6 +63,9 @@
   (declare (simple-string string))
   (loop for char across string
         always (char< char +ascii-char-limit+)))
+
+(deftype storage-fixnum ()
+  `(signed-byte ,(* +fixnum-length+ 8)))
 
 ;;;
 
@@ -154,13 +158,14 @@
   (+ 1 ;; tag
      1 ;; sign
      (typecase object
-       (#.`(signed-byte ,(* +fixnum-length+ 8))
+       (storage-fixnum
         +fixnum-length+)
        (t (+ 1 ;; size
              (* (ceiling (integer-length (abs object))
                          (* +fixnum-length+ 8)) +fixnum-length+))))))
 
 (defun write-fixnum (n stream)
+  (declare (storage-fixnum n))
   (write-n-bytes #.(type-code 'fixnum) 1 stream)
   (write-n-bytes (if (minusp n) 1 0) 1 stream)
   (write-n-bytes (abs n) +fixnum-length+ stream))
@@ -181,7 +186,7 @@
 
 (defmethod write-object ((object integer) stream)
   (typecase object
-    (#.`(signed-byte ,(* +fixnum-length+ 8))
+    (storage-fixnum
      (write-fixnum object stream))
     (t (write-bignum object stream))))
 
