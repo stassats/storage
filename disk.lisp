@@ -58,10 +58,11 @@
     (satisfies ascii-string-p)))
 
 (defun ascii-string-p (string)
-  (and (stringp string)
+  (and (simple-string-p string)
        (every (lambda (x)
                 (char< x +ascii-char-limit+))
               string)))
+
 ;;;
 
 (defun slot-effective-definition (class slot-name)
@@ -230,10 +231,12 @@
                   +char-length+)))))
 
 (defun write-ascii-string (string stream)
+  (declare (simple-string string))
   (loop for char across string
         do (write-n-bytes (char-code char) 1 stream)))
 
 (defun write-multibyte-string (string stream)
+  (declare (simple-string string))
   (loop for char across string
         do (write-n-bytes (char-code char) +char-length+ stream)))
 
