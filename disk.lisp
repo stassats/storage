@@ -171,6 +171,7 @@
   (write-n-bytes (abs n) +fixnum-length+ stream))
 
 (defun write-bignum (n stream)
+  (declare ((and integer (not storage-fixnum)) n))
   (write-n-bytes #.(type-code 'bignum) 1 stream)
   (write-n-bytes (if (minusp n) 1 0) 1 stream)
   (let* ((n (abs n))
@@ -463,8 +464,7 @@
                        (incf index)))))
 
 (defun prepare-classes (stream)
-  (let ((array (make-array (read-n-bytes +id-length+ stream)
-			   :initial-element nil)))
+  (let ((array (make-array (read-n-bytes +id-length+ stream))))
     (setf (indexes *storage*) array)
     (loop repeat (read-n-bytes +sequence-length+ stream)
 	  for class = (read-next-object stream)
