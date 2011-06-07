@@ -158,27 +158,33 @@
   (+ 1 ;; tag
      1 ;; sign
      (typecase object
-       (storage-fixnum
-        +fixnum-length+)
+       (storage-fixnum +fixnum-length+)
        (t (+ 1 ;; size
              (* (ceiling (integer-length (abs object))
-                         (* +fixnum-length+ 8)) +fixnum-length+))))))
+                         (* +fixnum-length+ 8))
+                +fixnum-length+))))))
+
+(declaim (inline sign))
+(defun sign (n)
+  (if (minusp n)
+      1
+      0))
 
 (defun write-fixnum (n stream)
   (declare (storage-fixnum n))
   (write-n-bytes #.(type-code 'fixnum) 1 stream)
-  (write-n-bytes (if (minusp n) 1 0) 1 stream)
+  (write-n-bytes (sign n) 1 stream)
   (write-n-bytes (abs n) +fixnum-length+ stream))
 
 (defun write-bignum (n stream)
   (declare ((and integer (not storage-fixnum)) n))
   (write-n-bytes #.(type-code 'bignum) 1 stream)
-  (write-n-bytes (if (minusp n) 1 0) 1 stream)
+  (write-n-bytes (sign n) 1 stream)
   (let* ((n (abs n))
          (size (ceiling (integer-length n)
                         (* +fixnum-length+ 8))))
     (write-n-bytes size 1 stream)
-    (loop for position to size
+    (loop for position below size
           do
           (write-n-bytes (ldb (byte (* +fixnum-length+ 8)
                                     (* position (* +fixnum-length+ 8)))
@@ -196,7 +202,7 @@
          -1
          1)
      (loop with integer = 0
-           for position to (read-n-bytes 1 stream)
+           for position below (read-n-bytes 1 stream)
            do
            (setf (ldb (byte (* +fixnum-length+ 8)
                             (* position (* +fixnum-length+ 8)))
