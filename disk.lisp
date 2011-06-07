@@ -113,7 +113,7 @@
 ;;; Symbol
 
 (defun short-package-name (package)
-  (if (eq package (find-package :cl))
+  (if (eq package (load-time-value (find-package :cl)))
       (symbol-name :cl)
       (package-name package)))
 
