@@ -5,7 +5,7 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defvar *codes* #(ascii-string
                     identifiable cons
-                    string symbol
+                    string null symbol
                     storable-class
                     standard-object
                     fixnum bignum ratio)))
@@ -109,6 +109,18 @@
 
 (defun read-next-object (stream)
   (call-reader (read-n-bytes 1 stream) stream))
+
+;;; NIL
+
+(defmethod object-size ((object null))
+  1)
+
+(defmethod write-object ((object null) stream)
+  (write-n-bytes #.(type-code 'null) 1 stream))
+
+(defreader null (stream)
+  (declare (ignore stream))
+  nil)
 
 ;;; Symbol
 
