@@ -54,14 +54,14 @@
 (defconstant +ascii-char-limit+ (code-char 128))
 
 (deftype ascii-string ()
-  '(or #+sb-unicode simple-base-string  ; on #-sb-unicode the limit is 255
-    (satisfies ascii-string-p)))
+  '(or #+sb-unicode simple-base-string ; on #-sb-unicode the limit is 255
+    (and simple-string
+     (satisfies ascii-string-p))))
 
 (defun ascii-string-p (string)
-  (and (simple-string-p string)
-       (every (lambda (x)
-                (char< x +ascii-char-limit+))
-              string)))
+  (declare (simple-string string))
+  (loop for char across string
+        always (char< char +ascii-char-limit+)))
 
 ;;;
 
