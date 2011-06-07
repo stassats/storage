@@ -26,21 +26,21 @@
   (defun type-code (type)
     (position type *codes*)))
 
-(defparameter *code-functions* (make-array (length *codes*)))
-(declaim (type (simple-array function (*)) *code-functions*))
+(defparameter *readers* (make-array (length *codes*)))
+(declaim (type (simple-array function (*)) *readers*))
 
 (defmacro defreader (type (stream) &body body)
   (let ((name (intern (format nil "~a-~a" type '#:reader))))
     `(progn
        (defun ,name (,stream)
          ,@body)
-       (setf (aref *code-functions* ,(type-code type))
+       (setf (aref *readers* ,(type-code type))
              #',name))))
 
 (declaim (inline call-reader))
 (defun call-reader (code stream)
   ;; (collect-stats code)
-  (funcall (aref *code-functions* code) stream))
+  (funcall (aref *readers* code) stream))
 
 ;;;
 
