@@ -55,7 +55,8 @@
 (defconstant +ascii-char-limit+ (code-char 128))
 
 (deftype ascii-string ()
-  '(or #+sb-unicode simple-base-string ; on #-sb-unicode the limit is 255
+  '(or 
+    #+sb-unicode simple-base-string ; on #-sb-unicode the limit is 255
     (and simple-string
      (satisfies ascii-string-p))))
 
@@ -180,15 +181,13 @@
   (declare ((and integer (not storage-fixnum)) n))
   (write-n-bytes #.(type-code 'bignum) 1 stream)
   (write-n-bytes (sign n) 1 stream)
-  (let* ((n (abs n))
-         (size (ceiling (integer-length n)
-                        (* +fixnum-length+ 8))))
+  (let* ((fixnum-bits (* +fixnum-length+ 8))
+         (n (abs n))
+         (size (ceiling (integer-length n) fixnum-bits)))
     (write-n-bytes size 1 stream)
-    (loop for position below size
+    (loop for position by fixnum-bits below (* size fixnum-bits)
           do
-          (write-n-bytes (ldb (byte (* +fixnum-length+ 8)
-                                    (* position (* +fixnum-length+ 8)))
-                              n)
+          (write-n-bytes (ldb (byte fixnum-bits position) n)
                          +fixnum-length+ stream))))
 
 (defmethod write-object ((object integer) stream)
@@ -197,23 +196,25 @@
      (write-fixnum object stream))
     (t (write-bignum object stream))))
 
+(declaim (inline read-sign))
+(defun read-sign (stream)
+  (if (plusp (read-n-bytes 1 stream))
+      -1
+      1))
+
 (defreader bignum (stream)
-  (* (if (plusp (read-n-bytes 1 stream))
-         -1
-         1)
-     (loop with integer = 0
-           for position below (read-n-bytes 1 stream)
-           do
-           (setf (ldb (byte (* +fixnum-length+ 8)
-                            (* position (* +fixnum-length+ 8)))
-                      integer)
-                 (read-n-bytes +fixnum-length+ stream))
-           finally (return integer))))
+  (let ((fixnum-bits (* +fixnum-length+ 8))
+        (sign (read-sign stream))
+        (size (read-n-bytes 1 stream))
+        (integer 0))
+    (loop for position by fixnum-bits below (* size fixnum-bits)
+          do
+          (setf (ldb (byte fixnum-bits position) integer)
+                (read-n-bytes +fixnum-length+ stream)))
+    (* sign integer)))
 
 (defreader fixnum (stream)
-  (* (if (plusp (read-n-bytes 1 stream))
-         -1
-         1)
+  (* (read-sign stream)
      (read-n-bytes +fixnum-length+ stream)))
 
 ;;; Ratio
@@ -420,12 +421,7 @@
 
 ;;;
 
-(defun initialize-slots (instance slot-cache)
-  (loop for (location . value)
-        across slot-cache
-        do (setf (standard-instance-access instance location)
-                 value))
-  instance)
+
 
 #+sbcl (declaim (inline fast-allocate-instance))
 
@@ -453,6 +449,14 @@
                     do
                     (setf (aref array index) instance)
                     (incf index)))))
+
+#-sbcl
+(defun initialize-slots (instance slot-cache)
+  (loop for (location . value)
+        across slot-cache
+        do (setf (standard-instance-access instance location)
+                 value))
+  instance)
 
 #-sbcl
 (defun preallocate-objects (array info)
