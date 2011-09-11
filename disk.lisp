@@ -80,10 +80,11 @@
   (let ((result (+ +id-length+		;; number of objects
 		   +sequence-length+))) ;; number of classes
     (map-data (lambda (class objects)
-                (incf result (object-size class))
-                (dolist (object objects)
-                  (incf result
-                        (standard-object-size object)))))
+                (when objects
+                 (incf result (object-size class))
+                 (dolist (object objects)
+                   (incf result
+                         (standard-object-size object))))))
     result))
 
 (defun assign-ids ()
@@ -97,14 +98,19 @@
          (incf last-id))))
     last-id))
 
+(defun number-of-non-empty-classes (storage)
+  (cl:count-if #'objects-of-class
+               (storage-data storage)))
+
 (defun write-classes-info (stream)
   (write-n-bytes (assign-ids) +id-length+ stream)
-  (write-n-bytes (length (storage-data *storage*))
+  (write-n-bytes (number-of-non-empty-classes *storage*)
 		 +sequence-length+ stream)
   (map-data (lambda (class objects)
-              (write-object class stream)
-	      (write-n-bytes (length objects)
-			     +id-length+ stream))))
+              (when objects
+                (write-object class stream)
+                (write-n-bytes (length objects)
+                               +id-length+ stream)))))
 
 (defun dump-data (stream)
   (write-classes-info stream)
