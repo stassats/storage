@@ -82,11 +82,18 @@
                (,function-name ,var))
              (,function-name ,list-name))))))
 
-(defun interlink-slots (object slot-value relation-name)
-  (do-maybe-list (slot slot-value)
-    (when (typep slot 'identifiable)
-      (pushnew object (getf (relations slot) relation-name)
-               :test #'eq))))
+(defun link-slot (relation object target-object)
+  (if (and (consp relation)
+           (eql (car relation) :slot))
+      (pushnew object (slot-value target-object (cadr relation))
+               :test #'eq)
+      (pushnew object (getf (relations target-object) relation)
+               :test #'eq)))
+
+(defun interlink-slots (object slot-value relation)
+  (do-maybe-list (target slot-value)
+    (when (typep target 'identifiable)
+      (link-slot relation object target))))
 
 (defgeneric interlink-objects (object))
 
