@@ -6,20 +6,44 @@
 (in-package #:storage)
 
 (define-compiler-macro read-n-bytes (&whole form bytes stream)
-  (if (eql 1 bytes)
-      `(read-byte ,stream)
-      form))
+  (case bytes
+    (1 `(read-byte ,stream))
+    (2 `(read-2-bytes ,stream))
+    (3 `(read-3-bytes ,stream))
+    (4 `(read-4-bytes ,stream))
+    (t form)))
 
 (declaim (inline read-n-bytes))
 (defun read-n-bytes (bytes stream)
-  (declare (type (integer 1 4) bytes)
-           (optimize speed))
-  (loop with value of-type fixnum = 0
-        for low-bit to (* 8 (1- bytes)) by 8
-        for byte = (read-byte stream)
-        do (setf (ldb (byte 8 low-bit) value) byte)
-        finally (return value)))
+  (ecase bytes
+    (1 (read-byte stream))
+    (2 (read-2-bytes stream))
+    (3 (read-3-bytes stream))
+    (4 (read-4-bytes stream))))
 
+(declaim (inline read-2-bytes read-3-bytes read-4-bytes))
+(defun read-2-bytes (stream)
+  (declare (optimize speed))
+  (let ((1-byte (read-byte stream))
+        (2-byte (read-byte stream)))
+    (logior (ash 2-byte 8) 1-byte)))
+
+(defun read-3-bytes (stream)
+  (declare (optimize speed))
+  (let ((1-byte (read-byte stream))
+        (2-byte (read-byte stream))
+        (3-byte (read-byte stream)))
+    (logior (ash 3-byte 16) (ash 2-byte 8) 1-byte)))
+
+(defun read-4-bytes (stream)
+  (declare (optimize speed))
+  (let ((1-byte (read-byte stream))
+        (2-byte (read-byte stream))
+        (3-byte (read-byte stream))
+        (4-byte (read-byte stream)))
+    (logior (ash 4-byte 24) (ash 3-byte 16) (ash 2-byte 8) 1-byte)))
+
+(declaim (inline write-n-bytes))
 (defun write-n-bytes (integer bytes stream)
   (loop for low-bit to (* 8 (1- bytes)) by 8
         do (write-byte (ldb (byte 8 low-bit) integer) stream)))
