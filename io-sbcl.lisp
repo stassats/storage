@@ -74,7 +74,6 @@
 (declaim (inline read-n-bytes))
 (defun read-n-bytes (n stream)
   (declare (optimize speed)
-           #+sbcl
            (sb-ext:muffle-conditions sb-ext:compiler-note)
            (type (integer 1 4) n))
   (funcall (ecase n

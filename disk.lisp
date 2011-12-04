@@ -427,8 +427,6 @@
 
 ;;;
 
-
-
 #+sbcl (declaim (inline fast-allocate-instance))
 
 #+sbcl
@@ -442,14 +440,15 @@
 
 #+sbcl
 (defun preallocate-objects (array info)
-  (declare (simple-vector array))
+  (declare (simple-vector array)
+           (optimize speed))
   (loop with index = 0
 	for (class . length) in info
 	for initforms = (class-initforms class)
 	for wrapper = (sb-pcl::class-wrapper class)
         do
         (setf (objects-of-class class)
-              (loop repeat length
+              (loop repeat (the fixnum length)
                     for instance = (fast-allocate-instance wrapper initforms)
                     collect instance
                     do
