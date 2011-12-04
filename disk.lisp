@@ -275,11 +275,12 @@
      (write-n-bytes (length string) +sequence-length+ stream)
      (write-multibyte-string string stream))))
 
+(declaim (inline read-ascii-string))
 (defun read-ascii-string (length stream)
   (let ((string (make-string length :element-type 'base-char)))
     #-sbcl
     (loop for i below length
-          do (setf (char string i)
+          do (setf (schar string i)
                    (code-char (read-n-bytes 1 stream))))
     #+(and sbcl (or x86 x86-64))
     (read-ascii-string-optimized length string stream)
@@ -292,7 +293,7 @@
   (let* ((length (read-n-bytes +sequence-length+ stream))
          (string (make-string length :element-type 'character)))
     (loop for i below length
-          do (setf (char string i)
+          do (setf (schar string i)
                    (code-char (read-n-bytes +char-length+ stream))))
     string))
 
@@ -376,8 +377,7 @@
     (aref index id)))
 
 (defreader identifiable (stream)
-  (let ((id (read-n-bytes +id-length+ stream)))
-    (get-instance id)))
+  (get-instance (read-n-bytes +id-length+ stream)))
 
 ;;; standard-object
 

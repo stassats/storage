@@ -97,6 +97,7 @@
         do (setf (sb-sys:sap-ref-word to i)
                  (sb-sys:sap-ref-word from i))))
 
+(declaim (inline read-ascii-string-optimized))
 (defun read-ascii-string-optimized (length string stream)
   (declare (type fixnum length))
   (sb-sys:with-pinned-objects (string)
