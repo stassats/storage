@@ -22,6 +22,9 @@
         (push (cons type 1) *statistics*))
     type))
 
+(defvar *indexes* #())
+(declaim (simple-vector *indexes*))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun type-code (type)
     (position type *codes*)))
@@ -119,6 +122,7 @@
               (dolist (object objects)
                 (write-standard-object object stream)))))
 
+(declaim (inline read-next-object))
 (defun read-next-object (stream)
   (call-reader (read-n-bytes 1 stream) stream))
 
@@ -372,9 +376,7 @@
 
 (declaim (inline get-instance))
 (defun get-instance (id)
-  (let ((index (indexes *storage*)))
-    (declare (simple-vector index))
-    (aref index id)))
+  (aref *indexes* id))
 
 (defreader identifiable (stream)
   (get-instance (read-n-bytes +id-length+ stream)))
@@ -480,7 +482,7 @@
 
 (defun prepare-classes (stream)
   (let ((array (make-array (read-n-bytes +id-length+ stream))))
-    (setf (indexes *storage*) array)
+    (setf *indexes* array)
     (loop repeat (read-n-bytes +sequence-length+ stream)
 	  for class = (read-next-object stream)
 	  for length = (read-n-bytes +id-length+ stream)
@@ -493,10 +495,11 @@
 	 (progn (prepare-classes stream)
 		(loop until (stream-end-of-file-p stream)
 		      do (read-next-object stream)))
-      (setf (indexes *storage*) nil))))
+      (setf *indexes* #()))))
 
 (defun load-data (storage &optional file)
-  (let ((*storage* storage))
+  (let ((*storage* storage)
+        (*indexes* *indexes*))
     (clear-cashes)
     (read-file (or file (storage-file *storage*)))
     (interlink-all-objects)))

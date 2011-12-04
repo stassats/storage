@@ -5,14 +5,14 @@
 
 (in-package #:storage)
 
+(declaim (inline indexes))
+
 (defclass storage ()
   ((data :initform nil
          :accessor storage-data)
    (file :initform nil
          :initarg :file
-         :accessor storage-file)
-   (indexes :initform nil
-            :accessor indexes)))
+         :accessor storage-file)))
 
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil
