@@ -80,14 +80,13 @@
 (defgeneric object-size (object))
 
 (defun measure-size ()
-  (let ((result (+ +id-length+		;; number of objects
-		   +sequence-length+))) ;; number of classes
+  (let ((result +sequence-length+)) ;; number of classes
     (map-data (lambda (class objects)
                 (when objects
-                 (incf result (object-size class))
-                 (dolist (object objects)
-                   (incf result
-                         (standard-object-size object))))))
+                  (incf result (object-size class))
+                  (dolist (object objects)
+                    (incf result
+                          (standard-object-size object))))))
     result))
 
 (defun assign-ids ()
@@ -98,15 +97,14 @@
        (declare (ignore class))
        (dolist (object objects)
          (setf (id object) last-id)
-         (incf last-id))))
-    last-id))
+         (incf last-id))))))
 
 (defun number-of-non-empty-classes (storage)
-  (cl:count-if #'objects-of-class
-               (storage-data storage)))
+  (count-if #'objects-of-class
+            (storage-data storage)))
 
 (defun write-classes-info (stream)
-  (write-n-bytes (assign-ids) +id-length+ stream)
+  (assign-ids)
   (write-n-bytes (number-of-non-empty-classes *storage*)
 		 +sequence-length+ stream)
   (map-data (lambda (class objects)
@@ -481,13 +479,13 @@
                        (incf index)))))
 
 (defun prepare-classes (stream)
-  (let ((array (make-array (read-n-bytes +id-length+ stream))))
-    (setf *indexes* array)
-    (loop repeat (read-n-bytes +sequence-length+ stream)
-	  for class = (read-next-object stream)
-	  for length = (read-n-bytes +id-length+ stream)
-	  collect (cons class length) into info
-	  finally (preallocate-objects array info))))
+  (loop repeat (read-n-bytes +sequence-length+ stream)
+        for class = (read-next-object stream)
+        for length = (read-n-bytes +id-length+ stream)
+        collect (cons class length) into info
+        sum length into array-length
+        finally
+        (preallocate-objects (setf *indexes* (make-array array-length)) info)))
 
 (defun read-file (file)
   (with-io-file (stream file)
