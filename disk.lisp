@@ -53,7 +53,7 @@
 (defconstant +char-length+ 2)
 (defconstant +id-length+ 3)
 
-(defconstant +end-of-slots+ 255)
+(defconstant +end+ 255)
 
 (defconstant +ascii-char-limit+ (code-char 128))
 
@@ -302,7 +302,7 @@
 ;;; cons
 
 (defmethod object-size ((list cons))
-  (let ((count (+ 1 +sequence-length+)))
+  (let ((count (+ 1 1))) ;; type + +end+
     (mapc (lambda (x)
             (incf count (object-size x)))
           list)
@@ -310,13 +310,14 @@
 
 (defmethod write-object ((list cons) stream)
   (write-n-bytes #.(type-code 'cons) 1 stream)
-  (write-n-bytes (length list) +sequence-length+ stream)
   (dolist (item list)
-    (write-object item stream)))
+    (write-object item stream))
+  (write-n-bytes +end+ 1 stream))
 
 (defreader cons (stream)
-  (loop repeat (read-n-bytes +sequence-length+ stream)
-        collect (read-next-object stream)))
+  (loop for code = (read-n-bytes 1 stream)
+        until (= code +end+)
+        collect (call-reader code stream)))
 
 ;;; storable-class
 
@@ -410,7 +411,7 @@
           do
           (write-n-bytes id 1 stream)
           (write-object value stream))
-    (write-n-bytes +end-of-slots+ 1 stream)))
+    (write-n-bytes +end+ 1 stream)))
 
 (defreader standard-object (stream)
   (let* ((instance (get-instance
@@ -419,7 +420,7 @@
          (slots (slot-locations-and-initforms class)))
     (declare (simple-vector slots))
     (loop for slot-id = (read-n-bytes 1 stream)
-          until (= slot-id +end-of-slots+)
+          until (= slot-id +end+)
           do (setf (standard-instance-access instance
                                              (car (aref slots slot-id)))
                    (read-next-object stream)))
