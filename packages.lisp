@@ -24,7 +24,6 @@
    #:storage-data
    #:slot-db-type
    #:slot-read-only-p
-   #:object-with-id
    #:map-data
    #:search-key
    #:make-kmp-searcher
