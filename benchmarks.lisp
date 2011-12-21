@@ -27,9 +27,10 @@
 
 (defun class-preallocation-test (storage)
   (loop for class in (storage-data storage)
+        for i = 0 then (+ i length)
         for length = (length (objects-of-class class))
         when (plusp length)
-        collect (cons class length) into info
+        collect (list class length i) into info
         and
         sum length into array-length
         finally
