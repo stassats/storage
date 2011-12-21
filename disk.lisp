@@ -133,7 +133,8 @@
   (write-n-bytes #.(type-code 'null) 1 stream))
 
 (defreader null (stream)
-  (declare (ignore stream))
+  (declare (ignore stream)
+           (optimize speed))
   nil)
 
 ;;; Symbol
@@ -439,12 +440,32 @@
 	  wrapper)
     instance))
 
-#+sbcl
-(defun preallocate-objects (array info)
+(defvar *number-of-threads* 4)
+
+(defun min-position (vector)
+  (loop with min-position = 0
+        with min = (aref vector 0)
+        for i from 0
+        until (= i (length vector))
+        for value = (aref vector i)
+        when (< value min)
+        do (setf min value
+                 min-position i)
+        finally (return min-position)))
+
+(defun lpt (info)
+  (let* ((threads (make-array *number-of-threads* :initial-element 0))
+         (threads-info (make-array *number-of-threads* :initial-element ())))
+    (loop for info in info
+          for position = (min-position threads)
+          do (incf (aref threads position) (second info))
+             (push info (aref threads-info position)))
+    threads-info))
+
+(defun preallocate-objects-worker (array info)
   (declare (simple-vector array)
            (optimize speed))
-  (loop with index = 0
-	for (class . length) in info
+  (loop for (class length index) in info
 	for initforms = (class-initforms class)
 	for wrapper = (sb-pcl::class-wrapper class)
         do
@@ -455,6 +476,17 @@
                     do
                     (setf (aref array index) instance)
                     (incf index)))))
+
+#+sbcl
+(defun preallocate-objects (array info)
+  (let ((threads (lpt info)))
+    (mapcar
+     #'sb-thread:join-thread
+     (loop for info across threads
+           collect (sb-thread:make-thread
+                    (lambda (info)
+                      (preallocate-objects-worker array info))
+                    :arguments (list info))))))
 
 #-sbcl
 (defun initialize-slots (instance slot-cache)
@@ -481,12 +513,14 @@
 
 (defun prepare-classes (stream)
   (loop repeat (read-n-bytes +sequence-length+ stream)
+        for start = 0 then (+ start length)
         for class = (read-next-object stream)
         for length = (read-n-bytes +id-length+ stream)
-        collect (cons class length) into info
+        collect (list class length start) into info
         sum length into array-length
         finally
-        (preallocate-objects (setf *indexes* (make-array array-length)) info)))
+        (time (preallocate-objects (setf *indexes* (make-array array-length))
+                              info))))
 
 (defun read-file (file)
   (with-io-file (stream file)
