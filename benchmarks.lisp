@@ -13,12 +13,18 @@
       (loop repeat amount
             do (write-object object stream)))))
 
+(defun gc ()
+  #+sbcl (sb-ext:gc :full t))
+
+(defmacro time-with-gc (&body body)
+  `(progn (gc)
+          (time (progn ,@body))))
+
 (defun load-test ()
-  #+sbcl (sb-ext:gc :full t)
   (with-io-file (stream *test-file*)
-    (time
-     (loop repeat (read-next-object stream)
-           do (read-next-object stream)))))
+    (time-with-gc
+      (loop repeat (read-next-object stream)
+            do (read-next-object stream)))))
 
 (defgeneric create-test-object (type &key &allow-other-keys))
 
