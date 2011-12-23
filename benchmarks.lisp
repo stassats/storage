@@ -13,12 +13,20 @@
       (loop repeat amount
             do (write-object object stream)))))
 
-(defun load-test ()
+(defun gc ()
   #+sbcl (sb-ext:gc :full t)
+  #+ccl (progn (ccl:set-lisp-heap-gc-threshold (* 1024 1024 64))
+               (ccl:gc)))
+
+(defmacro time-with-gc (&body body)
+  `(progn (gc)
+          (time (progn ,@body))))
+
+(defun load-test ()
   (with-io-file (stream *test-file*)
-    (time
-     (loop repeat (read-next-object stream)
-           do (read-next-object stream)))))
+    (time-with-gc
+      (loop repeat (read-next-object stream)
+            do (read-next-object stream)))))
 
 (defgeneric create-test-object (type &key &allow-other-keys))
 
