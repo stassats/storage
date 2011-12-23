@@ -101,6 +101,34 @@
         (interlink-slots object
                          (standard-instance-access object loc)
                          relation)))
+
+;;;
+
+(defun interlink-all-objects-first-time ()
+  (map-data
+   (lambda (class objects)
+     (declare (ignore class))
+     (loop for object in objects
+           do (interlink-objects-first-time object)))))
+
+(defun link-slot-first-time (relation object target-object)
+  (if (and (consp relation)
+           (eql (car relation) :slot))
+      (push object (slot-value target-object (cadr relation)))
+      (push object (getf (relations target-object) relation))))
+
+(defun interlink-slots-first-time (object slot-value relation)
+  (do-maybe-list (target slot-value)
+    (when (typep target 'identifiable)
+      (link-slot-first-time relation object target))))
+
+(defun interlink-objects-first-time (object)
+  (loop for (loc . relation) in (class-relations (class-of object))
+        do
+        (interlink-slots-first-time object
+                                    (standard-instance-access object loc)
+                                    relation)))
+
 ;;;
 
 (defun clear-cashes ()

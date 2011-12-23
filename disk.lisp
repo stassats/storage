@@ -526,7 +526,8 @@
   (let ((*storage* storage)
         (*indexes* *indexes*))
     (clear-cashes)
-    (read-file (or file (storage-file *storage*)))))
+    (read-file (or file (storage-file *storage*)))
+    (interlink-all-objects-first-time)))
 
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
