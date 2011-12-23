@@ -9,7 +9,8 @@
       string null symbol
       storable-class
       standard-object
-      fixnum bignum ratio)))
+      fixnum bignum ratio
+      list-of-objects)))
 
 (declaim (type simple-vector *codes*))
 
@@ -303,21 +304,46 @@
 
 (defmethod object-size ((list cons))
   (let ((count (+ 1 1))) ;; type + +end+
-    (mapc (lambda (x)
-            (incf count (object-size x)))
-          list)
+    (cond ((list-of-objects-p list)
+           (incf count (+ (* (length list)
+                             +id-length+)
+                          (1- +sequence-length+)))) ;; sans +end+
+          (t
+           (mapc (lambda (x)
+                   (incf count (object-size x)))
+                 list)))
     count))
 
 (defmethod write-object ((list cons) stream)
-  (write-n-bytes #.(type-code 'cons) 1 stream)
-  (dolist (item list)
-    (write-object item stream))
-  (write-n-bytes +end+ 1 stream))
+  (cond ((list-of-objects-p list)
+         (write-list-of-objects list stream))
+        (t
+         (write-n-bytes #.(type-code 'cons) 1 stream)
+         (dolist (item list)
+           (write-object item stream))
+         (write-n-bytes +end+ 1 stream))))
 
 (defreader cons (stream)
   (loop for code = (read-n-bytes 1 stream)
         until (= code +end+)
         collect (call-reader code stream)))
+
+;;; list-of-objects
+
+(defun list-of-objects-p (list)
+  (loop for i in list
+        always (typep i 'standard-object)))
+
+(defun write-list-of-objects (list stream)
+  (write-n-bytes #.(type-code 'list-of-objects) 1 stream)
+  (write-n-bytes (length list) +sequence-length+ stream)
+  (dolist (object list)
+    (write-n-bytes (id object) +id-length+ stream)))
+
+(defreader list-of-objects (stream)
+  (loop repeat (read-n-bytes +sequence-length+ stream)
+        for id = (read-n-bytes +id-length+ stream)
+        collect (get-instance id)))
 
 ;;; storable-class
 
@@ -500,8 +526,7 @@
   (let ((*storage* storage)
         (*indexes* *indexes*))
     (clear-cashes)
-    (read-file (or file (storage-file *storage*)))
-    (interlink-all-objects-first-time)))
+    (read-file (or file (storage-file *storage*)))))
 
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
