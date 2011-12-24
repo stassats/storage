@@ -84,11 +84,38 @@
            (advance-stream n stream)
            0))
 
+(declaim (inline read-n-signed-bytes))
+(defun read-n-signed-bytes (n stream)
+  (declare (optimize speed)
+           (sb-ext:muffle-conditions sb-ext:compiler-note)
+           (type (integer 1 4) n))
+  (funcall (ecase n
+             (1 #'sb-sys:signed-sap-ref-8)
+             (2 #'sb-sys:signed-sap-ref-16)
+             ;; (3 )
+             (4 #'sb-sys:signed-sap-ref-32))
+           (advance-stream n stream)
+           0))
+
 (declaim (inline write-n-bytes))
 (defun write-n-bytes (value n stream)
   (declare (optimize speed)
            (fixnum n))
   (setf (sb-sys:sap-ref-32 (advance-stream n stream) 0) value)
+  t)
+
+(declaim (inline write-n-signed-bytes))
+(defun write-n-signed-bytes (value n stream)
+  (declare (optimize speed)
+           (fixnum n))
+  (ecase n
+    (1 (setf (sb-sys:signed-sap-ref-8 (advance-stream n stream) 0)
+             value))
+    (2 (setf (sb-sys:signed-sap-ref-16 (advance-stream n stream) 0)
+             value))
+    ;; (3 )
+    (4 (setf (sb-sys:signed-sap-ref-32 (advance-stream n stream) 0)
+             value)))
   t)
 
 (declaim (inline copy-mem))

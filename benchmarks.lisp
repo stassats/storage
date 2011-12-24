@@ -28,10 +28,22 @@
       (loop repeat (read-next-object stream)
             do (read-next-object stream)))))
 
+(defun identity-test (x &optional (mode :both))
+  (when (member mode '(:both :write))
+    (with-io-file (stream *test-file* :direction :output
+                                      :size (object-size x))
+      (write-object x stream)))
+  (when (member mode '(:both :read))
+   (with-io-file (stream *test-file*)
+     (read-next-object stream))))
+
 (defgeneric create-test-object (type &key &allow-other-keys))
 
 (defmethod create-test-object ((type (eql 'cons)) &key object-size)
   (make-list (or object-size 10000) :initial-element nil))
+
+(defmethod create-test-object ((type (eql 'fixnum)) &key)
+  -1)
 
 (defun class-preallocation-test (storage)
   (loop for class in (storage-data storage)

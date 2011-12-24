@@ -14,12 +14,17 @@
     (t form)))
 
 (declaim (inline read-n-bytes))
-(defun read-n-bytes (bytes stream)
-  (ecase bytes
+(defun read-n-bytes (n stream)
+  (ecase n
     (1 (read-byte stream))
     (2 (read-2-bytes stream))
     (3 (read-3-bytes stream))
     (4 (read-4-bytes stream))))
+
+(declaim (inline read-n-signed-bytes))
+(defun read-n-signed-bytes (n stream)
+  (let ((byte (read-n-bytes n stream)))
+    (logior byte (- (logand byte (ash 1 (1- (* n 8))))))))
 
 (declaim (inline read-2-bytes read-3-bytes read-4-bytes))
 (defun read-2-bytes (stream)
@@ -44,9 +49,13 @@
     (logior (ash 4-byte 24) (ash 3-byte 16) (ash 2-byte 8) 1-byte)))
 
 (declaim (inline write-n-bytes))
-(defun write-n-bytes (integer bytes stream)
-  (loop for low-bit to (* 8 (1- bytes)) by 8
+(defun write-n-bytes (integer n stream)
+  (loop for low-bit to (* 8 (1- n)) by 8
         do (write-byte (ldb (byte 8 low-bit) integer) stream)))
+
+(declaim (inline write-n-signed-bytes))
+(defun write-n-signed-bytes (integer n stream)
+  (write-n-bytes (ldb (byte (* n 8) 0) integer) n stream))
 
 (defmacro with-io-file ((stream file &key (direction :input) size) &body body)
   (declare (ignore size))

@@ -166,10 +166,10 @@
 
 (defmethod object-size ((object integer))
   (+ 1 ;; tag
-     1 ;; sign
      (typecase object
        (storage-fixnum +fixnum-length+)
-       (t (+ 1 ;; size
+       (t (+ 1 ;; sign
+             1 ;; size
              (* (ceiling (integer-length (abs object))
                          (* +fixnum-length+ 8))
                 +fixnum-length+))))))
@@ -183,8 +183,7 @@
 (defun write-fixnum (n stream)
   (declare (storage-fixnum n))
   (write-n-bytes #.(type-code 'fixnum) 1 stream)
-  (write-n-bytes (sign n) 1 stream)
-  (write-n-bytes (abs n) +fixnum-length+ stream))
+  (write-n-signed-bytes n +fixnum-length+ stream))
 
 (defun write-bignum (n stream)
   (declare ((and integer (not storage-fixnum)) n))
@@ -223,8 +222,7 @@
     (* sign integer)))
 
 (defreader fixnum (stream)
-  (* (read-sign stream)
-     (read-n-bytes +fixnum-length+ stream)))
+  (read-n-signed-bytes +fixnum-length+ stream))
 
 ;;; Ratio
 
