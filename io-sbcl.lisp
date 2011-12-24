@@ -107,6 +107,7 @@
 (declaim (inline write-n-signed-bytes))
 (defun write-n-signed-bytes (value n stream)
   (declare (optimize speed)
+           (sb-ext:muffle-conditions sb-ext:compiler-note)
            (fixnum n))
   (ecase n
     (1 (setf (sb-sys:signed-sap-ref-8 (advance-stream n stream) 0)
