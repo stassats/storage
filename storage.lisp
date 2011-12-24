@@ -107,23 +107,33 @@
 (defun interlink-all-objects-first-time ()
   (map-data
    (lambda (class objects)
-     (declare (ignore class))
-     (loop for object in objects
-           do (interlink-objects-first-time object)))))
+     (let ((relations (class-relations class)))
+       (when relations
+         (loop for object in objects
+               do (interlink-objects-first-time object relations)))))))
+
+(declaim (inline set-relations))
+(defun set-relations (relation object target-object)
+  (let* ((relations (relations target-object))
+         (list (getf relations relation)))
+    (if list
+        (psetf (car list) object
+               (cdr list) (cons (car list) (cdr list)))
+        (setf (relations target-object)
+              (list* relation (list object) relations)))))
 
 (defun link-slot-first-time (relation object target-object)
   (if (and (consp relation)
            (eql (car relation) :slot))
       (push object (slot-value target-object (cadr relation)))
-      (push object (getf (relations target-object) relation))))
+      (set-relations relation object target-object)))
 
 (defun interlink-slots-first-time (object slot-value relation)
   (do-maybe-list (target slot-value)
-    (when (typep target 'identifiable)
-      (link-slot-first-time relation object target))))
+    (link-slot-first-time relation object target)))
 
-(defun interlink-objects-first-time (object)
-  (loop for (loc . relation) in (class-relations (class-of object))
+(defun interlink-objects-first-time (object relations)
+  (loop for (loc . relation) in relations
         do
         (interlink-slots-first-time object
                                     (standard-instance-access object loc)
@@ -143,7 +153,7 @@
 
 (defmethod add ((object identifiable) &key)
   (store-object object)
-  (storage:interlink-objects object)
+  (interlink-objects object)
   object)
 
 (defun where (&rest clauses)
