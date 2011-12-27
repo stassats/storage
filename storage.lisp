@@ -112,15 +112,28 @@
          (loop for object in objects
                do (interlink-objects-first-time object relations)))))))
 
+(declaim (inline prepend))
+(defun prepend (item list)
+  (psetf (car list) item
+         (cdr list) (cons (car list) (cdr list))))
+
+(declaim (inline fgetf))
+(defun fgetf (place indicator)
+  (loop for (key value) on place by #'cddr
+        when (eq key indicator) return value))
+
 (declaim (inline set-relations))
 (defun set-relations (relation object target-object)
   (let* ((relations (relations target-object))
-         (list (getf relations relation)))
-    (if list
-        (psetf (car list) object
-               (cdr list) (cons (car list) (cdr list)))
-        (setf (relations target-object)
-              (list* relation (list object) relations)))))
+         (list (fgetf relations relation)))
+    (cond (list
+           (prepend object list))
+          (relations
+           (prepend (list object) relations)
+           (prepend relation relations))
+          (t
+           (setf (relations target-object)
+                 (list* relation (list object) relations))))))
 
 (defun link-slot-first-time (relation object target-object)
   (if (and (consp relation)
