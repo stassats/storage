@@ -24,7 +24,7 @@
 (declaim (inline read-n-signed-bytes))
 (defun read-n-signed-bytes (n stream)
   (let ((byte (read-n-bytes n stream)))
-    (logior byte (- (logand byte (ash 1 (1- (* n 8))))))))
+    (logior byte (- (mask-field (byte 1 (1- (* n 8))) byte)))))
 
 (declaim (inline read-2-bytes read-3-bytes read-4-bytes))
 (defun read-2-bytes (stream)

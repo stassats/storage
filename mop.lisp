@@ -5,8 +5,6 @@
 
 (in-package #:storage)
 
-(declaim (inline indexes))
-
 (defclass storage ()
   ((data :initform nil
          :accessor storage-data)
@@ -27,8 +25,6 @@
               :accessor class-relations)
    (initforms :initform nil
 	      :accessor class-initforms)
-   (class-id :initform 0
-             :accessor class-id)
    (objects :initform nil
             :accessor objects-of-class)
    (storage :initform nil
@@ -55,29 +51,6 @@
   (apply #'initialize-storable-class #'call-next-method class args))
 
 ;;;
-
-(defvar *class-cache* #())
-
-(defun grow-cache ()
-  (let* ((next-position (length *class-cache*))
-         (new-cache (make-array (+ next-position 20) :initial-element nil)))
-    (replace new-cache *class-cache*)
-    (setf *class-cache* new-cache)
-    next-position))
-
-(defun assign-id-to-class (class)
-  (loop for i from 0
-        for cached-class across *class-cache*
-        unless cached-class
-        return (cache-class-with-id class i)
-        when (eq cached-class class)
-        return (setf (class-id class) i)
-        finally (cache-class-with-id class (grow-cache)))
-  t)
-
-(defun cache-class-with-id (class id)
-  (setf (class-id class) id)
-  (setf (aref *class-cache* id) class))
 
 (defmethod validate-superclass
     ((class standard-class)
@@ -192,8 +165,7 @@
 
 (defmethod initialize-instance :after ((class storable-class) &key)
   (when (class-storage class)
-    (pushnew class (storage-data (class-storage class)) :test #'eq))
-  (assign-id-to-class class))
+    (pushnew class (storage-data (class-storage class)) :test #'eq)))
 
 ;;;
 

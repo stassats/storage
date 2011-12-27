@@ -350,7 +350,6 @@
     (finalize-inheritance class))
   (+ 1 ;; type
      (object-size (class-name class))
-     1                 ;; class-id
      +sequence-length+ ;; list length
      (reduce #'+ (slots-to-store class)
              :key (lambda (x)
@@ -360,7 +359,6 @@
 (defmethod write-object ((class storable-class) stream)
   (write-n-bytes #.(type-code 'storable-class) 1 stream)
   (write-object (class-name class) stream)
-  (write-n-bytes (class-id class) 1 stream)
   (unless (class-finalized-p class)
     (finalize-inheritance class))
   (let ((slots (slots-to-store class)))
@@ -370,12 +368,9 @@
                            stream))))
 
 (defreader storable-class (stream)
-  (let ((class (find-class (read-next-object stream)))
-        (id (read-n-bytes 1 stream)))
-    (cache-class class id)
+  (let ((class (find-class (read-next-object stream))))
     (unless (class-finalized-p class)
       (finalize-inheritance class))
-    (pushnew class (storage-data (class-storage class)))
     (setf (objects-of-class class) nil)
     (let* ((length (read-n-bytes +sequence-length+ stream))
            (vector (make-array length)))

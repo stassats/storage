@@ -7,22 +7,6 @@
 
 (defvar *storage* nil)
 
-(defvar *read-class-cache* #())
-(declaim (simple-vector *read-class-cache*))
-
-(defun grow-read-cache (id)
-  (let ((new-cache (make-array (+ id 10) :initial-element nil)))
-    (replace new-cache *read-class-cache*)
-    (setf *read-class-cache* new-cache)))
-
-(defun cache-class (class id)
-  (unless (array-in-bounds-p *read-class-cache* id)
-    (grow-read-cache id))
-  (setf (aref *read-class-cache* id) class))
-
-(defun find-class-by-id (id)
-  (aref *read-class-cache* id))
-
 (defun objects-of-type (type)
   (objects-of-class (find-class type)))
 
