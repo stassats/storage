@@ -126,11 +126,11 @@
        slot-definitions))
 
 (defun initialize-class-slots (class &key slots-to-store-only)
-  (setf (slot-value class 'slot-locations-and-initforms)
+  (setf (slot-locations-and-initforms class)
 	(make-slots-cache (slots-to-store class)))
   (unless slots-to-store-only
-    (setf (slot-value class 'all-slot-locations-and-initforms)
-	  (make-slots-cache (class-slots class))
+    (setf (all-slot-locations-and-initforms class)
+          (make-slots-cache (class-slots class))
 	  (class-initforms class)
 	  (map 'vector #'slot-definition-initform (class-slots class)))))
 

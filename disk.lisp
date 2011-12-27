@@ -5,12 +5,19 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter *codes*
     #(ascii-string
-      identifiable cons
-      string null symbol
+      identifiable
+      cons
+      string
+      null
       storable-class
       standard-object
-      fixnum bignum ratio
-      list-of-objects)))
+      fixnum
+      bignum
+      ratio
+      list-of-objects
+      symbol
+      intern-package-and-symbol
+      intern-symbol)))
 
 (declaim (type simple-vector *codes*))
 
@@ -88,6 +95,7 @@
                   (dolist (object objects)
                     (incf result
                           (standard-object-size object))))))
+    (setf (fill-pointer *packages*) 0)
     result))
 
 (defun assign-ids ()
@@ -139,28 +147,97 @@
 
 ;;; Symbol
 
-(defun short-package-name (package)
-  (if (eq package (load-time-value (find-package :cl)))
-      (symbol-name :cl)
-      (package-name package)))
+(defvar *packages* #())
+(declaim (vector *packages*))
 
-(defmethod object-size ((object symbol))
-  (+ 3 ;; type + package name length + symbol length
-     (length (short-package-name (symbol-package object)))
-     (length (symbol-name object))))
+(defun make-s-packages ()
+  (make-array 10 :adjustable t :fill-pointer 0))
 
-(defmethod write-object ((object symbol) stream)
-  (write-n-bytes #.(type-code 'symbol) 1 stream)
-  (let ((name (symbol-name object))
-        (package (short-package-name (symbol-package object))))
-    (write-n-bytes (length name) 1 stream)
-    (write-ascii-string name stream)
-    (write-n-bytes (length package) 1 stream)
-    (write-ascii-string package stream)))
+(defun make-s-package (package)
+  (let ((symbols (make-array 100 :adjustable t :fill-pointer 0)))
+    (values (vector-push-extend (cons package symbols) *packages*)
+            symbols
+            t)))
+
+(defun find-s-package (package)
+  (loop for i below (length *packages*)
+        for (stored-package . symbols) = (aref *packages* i)
+        when (eq package stored-package)
+        return (values i symbols)
+        finally (return (make-s-package package))))
+
+(defun s-intern (symbol)
+  (multiple-value-bind (package-id symbols new-package)
+      (find-s-package (symbol-package symbol))
+    (let* ((existing (and (not new-package)
+                          (position symbol symbols)))
+           (symbol-id (or existing
+                          (vector-push-extend symbol symbols))))
+      (values package-id symbol-id new-package (not existing)))))
+
+(defun s-intern-existing (symbol symbols)
+  (vector-push-extend symbol symbols))
+
+(defmethod object-size ((symbol symbol))
+  (+ 1 ;; type
+     (multiple-value-bind (package-id symbol-id
+                           new-package new-symbol) (s-intern symbol)
+       (declare (ignore package-id symbol-id))
+       (cond ((and new-package new-symbol)
+              (+ (object-size (package-name (symbol-package symbol)))
+                 (object-size (symbol-name symbol))))
+             (new-symbol
+              (+ +sequence-length+
+                 (object-size (symbol-name symbol))))
+             (t
+              (+ +sequence-length+
+                 +sequence-length+))))))
+
+(defmethod write-object ((symbol symbol) stream)
+  (multiple-value-bind (package-id symbol-id
+                        new-package new-symbol) (s-intern symbol)
+    (cond ((and new-package new-symbol)
+           (write-n-bytes #.(type-code 'intern-package-and-symbol) 1 stream)
+           (write-object (package-name (symbol-package symbol)) stream)
+           (write-object (symbol-name symbol) stream))
+          (new-symbol
+           (write-n-bytes #.(type-code 'intern-symbol) 1 stream)
+           (write-n-bytes package-id +sequence-length+ stream)
+           (write-object (symbol-name symbol) stream))
+          (t
+           (write-n-bytes #.(type-code 'symbol) 1 stream)
+           (write-n-bytes package-id +sequence-length+ stream)
+           (write-n-bytes symbol-id +sequence-length+ stream)))))
 
 (defreader symbol (stream)
-  (intern (read-ascii-string (read-n-bytes 1 stream) stream)
-          (read-ascii-string (read-n-bytes 1 stream) stream)))
+  (let* ((package-id (read-n-bytes +sequence-length+ stream))
+         (symbol-id (read-n-bytes +sequence-length+ stream))
+         (package (or (aref *packages* package-id)
+                      (error "Package with id ~a not found" package-id)))
+         (symbol (aref (cdr package) symbol-id)))
+    (or symbol
+        (error "Symbol with id ~a in package ~a not found"
+               symbol-id (car package)))))
+
+(defreader intern-package-and-symbol (stream)
+  (let* ((package-name (read-next-object stream))
+         (symbol-name (read-next-object stream))
+         (package (or (find-package package-name)
+                      (error "Package ~a not found" package-name)))
+         (symbol (intern symbol-name package))
+         (s-package (nth-value 1 (make-s-package package))))
+    (s-intern-existing symbol s-package)
+    symbol))
+
+(defreader intern-symbol (stream)
+  (let* ((package-id (read-n-bytes +sequence-length+ stream))
+         (symbol-name (read-next-object stream))
+         (package (or (aref *packages* package-id)
+                      (error "Package with id ~a for symbol ~a not found"
+                             package-id symbol-name)))
+         (symbol (intern symbol-name (car package))))
+    (s-intern-existing symbol (cdr package))
+    symbol))
 
 ;;; Integer
 
@@ -477,8 +554,7 @@
 
 #-sbcl
 (defun initialize-slots (instance slot-cache)
-  (loop for (location . value)
-        across slot-cache
+  (loop for (location . value) across slot-cache
         do (setf (standard-instance-access instance location)
                  value))
   instance)
@@ -517,13 +593,15 @@
 
 (defun load-data (storage &optional file)
   (let ((*storage* storage)
-        (*indexes* *indexes*))
+        (*indexes* *indexes*)
+        (*packages* (make-s-packages)))
     (clear-cashes)
     (read-file (or file (storage-file *storage*)))
     (interlink-all-objects-first-time)))
 
 (defun save-data (storage &optional file)
-  (let ((*storage* storage))
+  (let ((*storage* storage)
+        (*packages* (make-s-packages)))
     (when (storage-data storage)
       (with-io-file (stream (or file (storage-file storage))
                             :direction :output

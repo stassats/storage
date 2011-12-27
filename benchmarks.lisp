@@ -29,13 +29,15 @@
             do (read-next-object stream)))))
 
 (defun identity-test (x &optional (mode :both))
-  (when (member mode '(:both :write))
-    (with-io-file (stream *test-file* :direction :output
-                                      :size (object-size x))
-      (write-object x stream)))
-  (when (member mode '(:both :read))
-   (with-io-file (stream *test-file*)
-     (read-next-object stream))))
+  (let ((*packages* (make-s-packages)))
+    (when (member mode '(:both :write))
+      (with-io-file (stream *test-file* :direction :output
+                                        :size (object-size x))
+        (write-object x stream))))
+  (let ((*packages* (make-s-packages)))
+   (when (member mode '(:both :read))
+     (with-io-file (stream *test-file*)
+       (read-next-object stream)))))
 
 (defgeneric create-test-object (type &key &allow-other-keys))
 
