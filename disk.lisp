@@ -19,8 +19,6 @@
       intern-package-and-symbol
       intern-symbol)))
 
-(declaim (type simple-vector *codes*))
-
 (defvar *statistics* ())
 (defun collect-stats (code)
   (let* ((type (aref *codes* code))
