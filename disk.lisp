@@ -66,10 +66,9 @@
 (defconstant +ascii-char-limit+ (code-char 128))
 
 (deftype ascii-string ()
-  '(or 
+  '(or
     #+sb-unicode simple-base-string ; on #-sb-unicode the limit is 255
-    (and simple-string
-     (satisfies ascii-string-p))))
+    (satisfies ascii-string-p)))
 
 (defun ascii-string-p (string)
   (declare (simple-string string))
