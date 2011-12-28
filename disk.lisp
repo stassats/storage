@@ -110,7 +110,6 @@
             (storage-data storage)))
 
 (defun write-classes-info (stream)
-  (assign-ids)
   (write-n-bytes (number-of-non-empty-classes *storage*)
                  +sequence-length+ stream)
   (map-data (lambda (class objects)
@@ -121,6 +120,7 @@
 
 (defun dump-data (stream)
   (write-classes-info stream)
+  (assign-ids)
   (map-data (lambda (class objects)
               (declare (ignore class))
               (dolist (object objects)
@@ -601,8 +601,8 @@
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
     (when (storage-data storage)
-      (with-io-file (stream (or file (storage-file storage))
-                     :direction :output
-                     :size (measure-size))
-        (with-packages
+      (with-packages
+        (with-io-file (stream (or file (storage-file storage))
+                       :direction :output
+                       :size (measure-size))
           (dump-data stream))))))
