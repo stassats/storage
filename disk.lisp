@@ -452,11 +452,12 @@
     (let* ((length (read-n-bytes +sequence-length+ stream))
            (vector (make-array length)))
       (loop for i below length
+            for slot-d =
+            (slot-effective-definition class (read-next-object stream))
             do (setf (aref vector i)
-                     (slot-effective-definition class
-                                                (read-next-object stream))))
-      (setf (slots-to-store class) vector)
-      (initialize-class-slots class :slots-to-store-only t))
+                     (cons (slot-definition-location slot-d)
+                           (slot-definition-initform slot-d))))
+      (setf (slot-locations-and-initforms-read class) vector))
     class))
 
 ;;; identifiable
@@ -513,7 +514,7 @@
   (let* ((instance (get-instance
 		    (read-n-bytes +id-length+ stream)))
 	 (class (class-of instance))
-         (slots (slot-locations-and-initforms class)))
+         (slots (slot-locations-and-initforms-read class)))
     (declare (simple-vector slots))
     (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end+)

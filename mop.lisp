@@ -18,6 +18,9 @@
    (slot-locations-and-initforms
     :initform nil
     :accessor slot-locations-and-initforms)
+   (slot-locations-and-initforms-read
+    :initform nil
+    :accessor slot-locations-and-initforms-read)
    (all-slot-locations-and-initforms
     :initform nil
     :accessor all-slot-locations-and-initforms)
@@ -125,23 +128,25 @@
 	       (slot-definition-initform slot-definition)))
        slot-definitions))
 
-(defun initialize-class-slots (class &key slots-to-store-only)
-  (setf (slot-locations-and-initforms class)
-	(make-slots-cache (slots-to-store class)))
-  (unless slots-to-store-only
+(defun initialize-class-slots (class slots)
+  (let* ((slots-to-store (coerce (remove-if-not #'store-slot-p slots)
+                                 'simple-vector)))
+    (setf (slots-to-store class)
+          slots-to-store)
+    (setf (slot-locations-and-initforms class)
+          (make-slots-cache slots-to-store))
     (setf (all-slot-locations-and-initforms class)
-          (make-slots-cache (class-slots class))
-	  (class-initforms class)
-	  (map 'vector #'slot-definition-initform (class-slots class)))))
+          (make-slots-cache slots))
+    (setf (class-initforms class)
+          (map 'vector #'slot-definition-initform slots))
+    (setf (class-relations class)
+          (slots-with-relations class))
+    (compute-search-key class slots)))
 
-(defmethod finalize-inheritance :after ((class storable-class))
-  (let ((slots (class-slots class)))
-    (setf (slot-value class 'slots-to-store)
-	  (coerce (remove-if-not #'store-slot-p slots)
-		  'simple-vector))
-    (initialize-class-slots class)
-    (compute-search-key class slots)
-    (setf (class-relations class) (slots-with-relations class))))
+(defmethod compute-slots :around ((class storable-class))
+  (let ((slots (call-next-method)))
+    (initialize-class-slots class slots)
+    slots))
 
 (defun find-slot (slot-name class)
   (find slot-name (class-slots class)
