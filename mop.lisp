@@ -179,14 +179,12 @@
        :initarg :id
        :initform nil
        :storep nil
-       :read-only-p t
-       :db-type :integer)
+       :read-only-p t)
    (relations :initarg :relations
               :initform nil
               :accessor relations
               :storep nil
-              :read-only-p t
-              :db-type :integer))
+              :read-only-p t))
   (:metaclass storable-class))
 
 (defgeneric relation (object type))
