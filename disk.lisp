@@ -112,7 +112,7 @@
 (defun write-classes-info (stream)
   (assign-ids)
   (write-n-bytes (number-of-non-empty-classes *storage*)
-		 +sequence-length+ stream)
+                 +sequence-length+ stream)
   (map-data (lambda (class objects)
               (when objects
                 (write-object class stream)
@@ -146,6 +146,10 @@
 
 (defvar *packages* #())
 (declaim (vector *packages*))
+
+(defmacro with-packages (&body body)
+  `(let ((*packages* (make-s-packages)))
+     ,@body))
 
 (defun make-s-packages ()
   (make-array 10 :adjustable t :fill-pointer 0))
@@ -509,8 +513,8 @@
 
 (defreader standard-object (stream)
   (let* ((instance (get-instance
-		    (read-n-bytes +id-length+ stream)))
-	 (class (class-of instance))
+                    (read-n-bytes +id-length+ stream)))
+         (class (class-of instance))
          (slots (slot-locations-and-initforms-read class)))
     (declare (simple-vector slots))
     (loop for slot-id = (read-n-bytes 1 stream)
@@ -528,9 +532,9 @@
 (defun fast-allocate-instance (wrapper initforms)
   (declare (simple-vector initforms))
   (let ((instance (sb-pcl::%make-standard-instance
-		   (copy-seq initforms) (sb-pcl::get-instance-hash-code))))
+                   (copy-seq initforms) (sb-pcl::get-instance-hash-code))))
     (setf (sb-pcl::std-instance-wrapper instance)
-	  wrapper)
+          wrapper)
     instance))
 
 #+sbcl
@@ -538,9 +542,9 @@
   (declare (simple-vector array)
            (optimize speed))
   (loop with index = 0
-	for (class . length) in info
-	for initforms = (class-initforms class)
-	for wrapper = (sb-pcl::class-wrapper class)
+        for (class . length) in info
+        for initforms = (class-initforms class)
+        for wrapper = (sb-pcl::class-wrapper class)
         do
         (setf (objects-of-class class)
               (loop repeat (the fixnum length)
@@ -561,9 +565,9 @@
 (defun preallocate-objects (array info)
   (declare (simple-array array))
   (loop with index = 0
-	for (class . length) in info
-	for slot-cache = (all-slot-locations-and-initforms class)
-	do
+        for (class . length) in info
+        for slot-cache = (all-slot-locations-and-initforms class)
+        do
         (setf (objects-of-class class)
               (loop repeat length
                     for instance = (allocate-instance class)
@@ -583,25 +587,22 @@
 
 (defun read-file (file)
   (with-io-file (stream file)
-    (unwind-protect
-	 (progn (prepare-classes stream)
-		(loop until (stream-end-of-file-p stream)
-		      do (read-next-object stream)))
-      (setf *indexes* #()))))
+    (prepare-classes stream)
+    (loop until (stream-end-of-file-p stream)
+          do (read-next-object stream))))
 
 (defun load-data (storage &optional file)
   (let ((*storage* storage)
-        (*indexes* *indexes*)
-        (*packages* (make-s-packages)))
-    (clear-cashes)
-    (read-file (or file (storage-file *storage*)))
+        (*indexes* *indexes*))
+    (with-packages
+      (read-file (or file (storage-file *storage*))))
     (interlink-all-objects-first-time)))
 
 (defun save-data (storage &optional file)
-  (let ((*storage* storage)
-        (*packages* (make-s-packages)))
+  (let ((*storage* storage))
     (when (storage-data storage)
       (with-io-file (stream (or file (storage-file storage))
-                            :direction :output
-                            :size (measure-size))
-        (dump-data stream)))))
+                     :direction :output
+                     :size (measure-size))
+        (with-packages
+          (dump-data stream))))))

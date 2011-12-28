@@ -136,11 +136,6 @@
                                     (standard-instance-access object loc)
                                     relation)))
 
-;;;
-
-(defun clear-cashes ()
-  (setf *read-class-cache* #()))
-
 ;;; Data manipulations
 
 (defgeneric add (class &rest args))
