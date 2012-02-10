@@ -24,7 +24,8 @@
       character
       simple-vector
       array
-      hash-table)))
+      hash-table
+      pathname)))
 
 (defvar *statistics* ())
 (defun collect-stats (code)
@@ -442,6 +443,32 @@
           do (setf (schar string i)
                    (code-char (read-n-bytes +char-length+ stream))))
     string))
+
+;;; Pathname
+
+(defmethod object-size ((pathname pathname))
+  (+ 1
+     (object-size (pathname-name pathname))
+     (object-size (pathname-directory pathname))
+     (object-size (pathname-device pathname))
+     (object-size (pathname-type pathname))
+     (object-size (pathname-version pathname))))
+
+(defmethod write-object ((pathname pathname) stream)
+  (write-n-bytes #.(type-code 'pathname) 1 stream)
+  (write-object (pathname-name pathname) stream)
+  (write-object (pathname-directory pathname) stream)
+  (write-object (pathname-device pathname) stream)
+  (write-object (pathname-type pathname) stream)
+  (write-object (pathname-version pathname) stream))
+
+(defreader pathname (stream)
+  (make-pathname
+   :name (read-next-object stream)
+   :directory (read-next-object stream)
+   :device (read-next-object stream)
+   :type (read-next-object stream)
+   :version (read-next-object stream)))
 
 ;;; Cons
 
