@@ -472,31 +472,52 @@
 
 ;;; Cons
 
+(defun cons-size (cons)
+  (loop for cdr = cons then (cdr cdr)
+        sum (object-size (alexandria:ensure-car cdr))
+        while (consp cdr)))
+
 (defmethod object-size ((list cons))
-  (let ((count (+ 1 1))) ;; type + +end+
-    (cond ((list-of-objects-p list)
-           (incf count (+ (* (length list)
-                             +id-length+)
-                          (1- +sequence-length+)))) ;; sans +end+
-          (t
-           (mapc (lambda (x)
-                   (incf count (object-size x)))
-                 list)))
-    count))
+  (cond ((and (alexandria:proper-list-p list)
+              (list-of-objects-p list))
+         (+ 1
+            (* (length list) +id-length+)
+            +sequence-length+))
+        ((alexandria:circular-list-p list)
+         (error "Can't store circular lists"))
+        (t
+         (+ 1 (cons-size list)
+            1))))
 
 (defmethod write-object ((list cons) stream)
-  (cond ((list-of-objects-p list)
+  (cond #-sbcl
+        ((alexandria:circular-list-p list)
+         (error "Can't store circular lists"))
+        ((and (alexandria:proper-list-p list)
+              (list-of-objects-p list))
          (write-list-of-objects list stream))
         (t
          (write-n-bytes #.(type-code 'cons) 1 stream)
-         (dolist (item list)
-           (write-object item stream))
-         (write-n-bytes +end+ 1 stream))))
+         (loop for cdr = list then (cdr cdr)
+               do
+               (cond ((consp cdr)
+                      (write-object (car cdr) stream))
+                     (t
+                      (write-n-bytes +end+ 1 stream)
+                      (write-object cdr stream)
+                      (return)))))))
 
 (defreader cons (stream)
-  (loop for code = (read-n-bytes 1 stream)
-        until (= code +end+)
-        collect (call-reader code stream)))
+  (let ((first-cons (list (read-next-object stream))))
+    (loop for previous-cons = first-cons then new-cons
+          for car = (let ((id (read-n-bytes 1 stream)))
+                      (cond ((eq id +end+)
+                             (setf (cdr previous-cons) (read-next-object stream))
+                             (return))
+                            ((call-reader id stream))))
+          for new-cons = (list car)
+          do (setf (cdr previous-cons) new-cons))
+    first-cons))
 
 ;;; list-of-objects
 
