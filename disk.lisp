@@ -14,6 +14,9 @@
       fixnum
       bignum
       ratio
+      double-float
+      single-float
+      complex
       list-of-objects
       symbol
       intern-package-and-symbol
@@ -323,6 +326,53 @@
   (/ (read-next-object stream)
      (read-next-object stream)))
 
+;;; Float
+
+(defmethod object-size ((float float))
+  (+ 1
+     (etypecase float
+       (single-float +single-float-length+)
+       (double-float +double-float-length+))))
+
+(defun write-8-bytes (n stream)
+  (write-n-bytes (ldb (byte 32 0) n) 4 stream)
+  (write-n-bytes (ldb (byte 64 32) n) 4 stream))
+
+(defun read-8-bytes (stream)
+  (logior (read-n-bytes 4 stream)
+          (ash (read-n-bytes 4 stream) 32)))
+
+(defmethod write-object ((float float) stream)
+  (etypecase float
+    (single-float
+     (write-n-bytes #.(type-code 'single-float) 1 stream)
+     (write-n-bytes (ieee-floats:encode-float32 float) 4 stream))
+    (double-float
+     (write-n-bytes #.(type-code 'double-float) 1 stream)
+     (write-8-bytes (ieee-floats:encode-float64 float) stream))))
+
+(defreader single-float (stream)
+  (ieee-floats:decode-float32 (read-n-bytes 4 stream)))
+
+(defreader double-float (stream)
+  (ieee-floats:decode-float64 (read-8-bytes stream)))
+
+;;; Complex
+
+(defmethod object-size ((complex complex))
+  (+ 1
+     (object-size (realpart complex))
+     (object-size (imagpart complex))))
+
+(defmethod write-object ((complex complex) stream)
+  (write-n-bytes #.(type-code 'complex) 1 stream)
+  (write-object (realpart complex) stream)
+  (write-object (imagpart complex) stream))
+
+(defreader complex (stream)
+  (complex (read-next-object stream)
+           (read-next-object stream)))
+
 ;;; Characters
 
 (defmethod object-size ((character character))
@@ -393,7 +443,7 @@
                    (code-char (read-n-bytes +char-length+ stream))))
     string))
 
-;;; cons
+;;; Cons
 
 (defmethod object-size ((list cons))
   (let ((count (+ 1 1))) ;; type + +end+
@@ -438,7 +488,7 @@
         for id = (read-n-bytes +id-length+ stream)
         collect (get-instance id)))
 
-;;; simple-vector
+;;; Simple-vector
 
 (defmethod object-size ((vector vector))
   (typecase vector
@@ -469,7 +519,7 @@
           do (setf (svref vector i) (read-next-object stream)))
     vector))
 
-;;; array
+;;; Array
 
 (defun array-size (array)
   (loop for i below (array-total-size array)
@@ -517,7 +567,7 @@
           do (setf (row-major-aref array i) (read-next-object stream)))
     array))
 
-;;; hash-table
+;;; Hash-table
 
 (defvar *hash-table-tests* #(eql equal equalp eq))
 (declaim (simple-vector *hash-table-tests*))
