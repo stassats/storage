@@ -17,7 +17,11 @@
       list-of-objects
       symbol
       intern-package-and-symbol
-      intern-symbol)))
+      intern-symbol
+      character
+      simple-vector
+      array
+      hash-table)))
 
 (defvar *statistics* ())
 (defun collect-stats (code)
@@ -30,6 +34,9 @@
 
 (defvar *indexes* #())
 (declaim (simple-vector *indexes*))
+
+(defvar *packages* #())
+(declaim (vector *packages*))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun type-code (type)
@@ -58,6 +65,7 @@
   (defconstant +fixnum-length+ 4))
 (defconstant +char-length+ 2)
 (defconstant +id-length+ 3)
+(defconstant +hash-table-length+ 3)
 
 (defconstant +end+ 255)
 
@@ -143,9 +151,6 @@
   nil)
 
 ;;; Symbol
-
-(defvar *packages* #())
-(declaim (vector *packages*))
 
 (defmacro with-packages (&body body)
   `(let ((*packages* (make-s-packages)))
@@ -318,6 +323,18 @@
   (/ (read-next-object stream)
      (read-next-object stream)))
 
+;;; Characters
+
+(defmethod object-size ((character character))
+  (+ 1 +char-length+))
+
+(defmethod write-object ((character character) stream)
+  (write-n-bytes #.(type-code 'character) 1 stream)
+  (write-n-bytes (char-code character) +char-length+ stream))
+
+(defreader character (stream)
+  (code-char (read-n-bytes +char-length+ stream)))
+
 ;;; Strings
 
 (defmethod object-size ((string string))
@@ -420,6 +437,133 @@
   (loop repeat (read-n-bytes +sequence-length+ stream)
         for id = (read-n-bytes +id-length+ stream)
         collect (get-instance id)))
+
+;;; simple-vector
+
+(defmethod object-size ((vector vector))
+  (typecase vector
+    (simple-vector
+     (+ 1 ;; type
+        +sequence-length+
+        (reduce #'+ vector :key #'object-size)))
+    (t
+     (call-next-method))))
+
+(defmethod write-object ((vector vector) stream)
+  (typecase vector
+    (simple-vector
+     (write-simple-vector vector stream))
+    (t
+     (call-next-method))))
+
+(defun write-simple-vector (vector stream)
+  (declare (simple-vector vector))
+  (write-n-bytes #.(type-code 'simple-vector) 1 stream)
+  (write-n-bytes (length vector) +sequence-length+ stream)
+  (loop for elt across vector
+        do (write-object elt stream)))
+
+(defreader simple-vector (stream)
+  (let ((vector (make-array (read-n-bytes +sequence-length+ stream))))
+    (loop for i below (length vector)
+          do (setf (svref vector i) (read-next-object stream)))
+    vector))
+
+;;; array
+
+(defun array-size (array)
+  (loop for i below (array-total-size array)
+        sum (object-size (row-major-aref array i))))
+
+(defmethod object-size ((array array))
+  (+ 1 ;; type
+     (object-size (array-dimensions array))
+     (if (array-has-fill-pointer-p array)
+         (+ 1 +sequence-length+)
+         2) ;; 0 + 0
+     (object-size (array-element-type array))
+     1 ;; adjustable-p
+     (array-size array)))
+
+(defun boolify (x)
+  (if x
+      1
+      0))
+
+(defmethod write-object ((array array) stream)
+  (write-n-bytes #.(type-code 'array) 1 stream)
+  (write-object (array-dimensions array) stream)
+  (cond ((array-has-fill-pointer-p array)
+         (write-n-bytes 1 1 stream)
+         (write-n-bytes (fill-pointer array) +sequence-length+ stream))
+        (t
+         (write-n-bytes 0 2 stream)))
+  (write-object (array-element-type array) stream)
+  (write-n-bytes (boolify (adjustable-array-p array)) 1 stream)
+  (loop for i below (array-total-size array)
+        do (write-object (row-major-aref array i) stream)))
+
+(defun read-array-fill-pointer (stream)
+  (if (plusp (read-n-bytes 1 stream))
+      (read-n-bytes +sequence-length+ stream)
+      (not (read-n-bytes 1 stream))))
+
+(defreader array (stream)
+  (let ((array (make-array (read-next-object stream)
+                           :fill-pointer (read-array-fill-pointer stream)
+                           :element-type (read-next-object stream)
+                           :adjustable (plusp (read-n-bytes 1 stream)))))
+    (loop for i below (array-total-size array)
+          do (setf (row-major-aref array i) (read-next-object stream)))
+    array))
+
+;;; hash-table
+
+(defvar *hash-table-tests* #(eql equal equalp eq))
+(declaim (simple-vector *hash-table-tests*))
+
+(defun check-hash-table-test (hash-table)
+  (let* ((test (hash-table-test hash-table))
+         (test-id (position test *hash-table-tests*)))
+   (unless test-id
+     (error "Only standard hashtable tests are supported, ~a has ~a"
+            hash-table test))
+    test-id))
+
+(defun measure-hash-table-size (hash-table)
+  (loop for key being the hash-keys of hash-table
+        using (hash-value value)
+        sum (+ (object-size key)
+               (object-size value))))
+
+(defmethod object-size ((hash-table hash-table))
+  (check-hash-table-test hash-table)
+  (+ 1
+     1 ;; test-id
+     +hash-table-length+
+     (measure-hash-table-size hash-table)
+     1)) ;; +end+
+
+(defmethod write-object ((hash-table hash-table) stream)
+  (write-n-bytes #.(type-code 'hash-table) 1 stream)
+  (write-n-bytes (check-hash-table-test hash-table) 1 stream)
+  (write-n-bytes (hash-table-size hash-table) +hash-table-length+ stream)
+  (loop for key being the hash-keys of hash-table
+        using (hash-value value)
+        do
+        (write-object key stream)
+        (write-object value stream))
+  (write-n-bytes +end+ 1 stream))
+
+(defreader hash-table (stream)
+  (let* ((test (svref *hash-table-tests* (read-n-bytes 1 stream)))
+         (size (read-n-bytes +hash-table-length+ stream))
+         (table (make-hash-table :test test :size size)))
+    (loop for id = (read-n-bytes 1 stream)
+          until (eq id +end+)
+          do (setf (gethash (call-reader id stream) table)
+                   (read-next-object stream)))
+    table))
 
 ;;; storable-class
 
