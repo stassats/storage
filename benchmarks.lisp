@@ -33,6 +33,7 @@
     (when (member mode '(:both :write))
       (with-io-file (stream *test-file* :direction :output
                                         :size (object-size x))
+        (setf (fill-pointer *packages*) 0)
         (write-object x stream))))
   (with-packages
    (let ((*packages* (make-s-packages)))
