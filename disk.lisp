@@ -389,12 +389,12 @@
 ;;; Strings
 
 (defmethod object-size ((string string))
-  (+ 1
-     +sequence-length+
-     (etypecase string
-       (ascii-string (length string))
-       (string (* (length string)
-                  +char-length+)))))
+  (typecase string
+    ((not simple-string) (call-next-method))
+    (ascii-string (+ 1 +sequence-length+ (length string)))
+    (t (+ 1 +sequence-length+
+          (* (length string)
+             +char-length+)))))
 
 (defun write-ascii-string (string stream)
   (declare (simple-string string))
@@ -408,6 +408,8 @@
 
 (defmethod write-object ((string string) stream)
   (etypecase string
+    ((not simple-string)
+     (call-next-method))
     #+sb-unicode
     (simple-base-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
