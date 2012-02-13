@@ -176,12 +176,10 @@
 
 (defclass identifiable (standard-object)
   ((id :accessor id
-       :initarg :id
        :initform nil
        :storep nil
        :read-only-p t)
-   (relations :initarg :relations
-              :initform nil
+   (relations :initform nil
               :accessor relations
               :storep nil
               :read-only-p t))

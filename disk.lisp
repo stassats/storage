@@ -332,8 +332,8 @@
 (defmethod object-size ((float float))
   (+ 1
      (etypecase float
-       (single-float +single-float-length+)
-       (double-float +double-float-length+))))
+       (single-float 4)
+       (double-float 8))))
 
 (defun write-8-bytes (n stream)
   (write-n-bytes (ldb (byte 32 0) n) 4 stream)
