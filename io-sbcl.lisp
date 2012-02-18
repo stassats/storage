@@ -15,9 +15,8 @@
   (end 0 :type word :read-only t))
 
 (defun scale-file (stream size)
-  (file-position stream (1- size))
-  (write-byte 0 stream)
-  (finish-output stream))
+  (sb-posix:ftruncate (sb-sys:fd-stream-fd stream)
+                      size))
 
 (defun mmap (file-stream
              &key direction size)
@@ -50,11 +49,19 @@
 
 ;;;
 
-(declaim (inline sap-ref-24))
+(declaim (inline sap-ref-24 (setf sap-ref-24)))
 (defun sap-ref-24 (sap offset)
   (declare (optimize speed (safety 0))
            (fixnum offset))
-  (mask-field (byte 24 0) (sb-sys:sap-ref-32 sap offset)))
+  (logior (ash (sb-sys:sap-ref-16 sap (1+ offset)) 8)
+          (sb-sys:sap-ref-8 sap offset)))
+
+(defun (setf sap-ref-24) (value sap offset)
+  (declare (optimize speed (safety 0))
+           (fixnum offset)
+           ((unsigned-byte 24) value))
+  (setf (sb-sys:sap-ref-16 sap offset) (mask-field (byte 16 0) value))
+  (setf (sb-sys:sap-ref-8 sap (+ offset 2)) (ash value -16)))
 
 (defun signal-end-of-file (stream)
   (error "End of file ~a" stream))
@@ -100,8 +107,13 @@
 (declaim (inline write-n-bytes))
 (defun write-n-bytes (value n stream)
   (declare (optimize speed)
+           (sb-ext:muffle-conditions sb-ext:compiler-note)
            (fixnum n))
-  (setf (sb-sys:sap-ref-32 (advance-stream n stream) 0) value)
+  (ecase n
+    (1 (setf (sb-sys:sap-ref-8 (advance-stream n stream) 0) value))
+    (2 (setf (sb-sys:sap-ref-16 (advance-stream n stream) 0) value))
+    (3 (setf (sap-ref-24 (advance-stream n stream) 0) value))
+    (4 (setf (sb-sys:sap-ref-32 (advance-stream n stream) 0) value)))
   t)
 
 (declaim (inline write-n-signed-bytes))
