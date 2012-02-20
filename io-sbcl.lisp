@@ -3,10 +3,30 @@
 ;;; This software is in the public domain and is
 ;;; provided with absolutely no warranty.
 
-(defpackage #:storage-test
-  (:use :cl))
-
 (in-package #:storage)
+
+(defconstant +buffer-size+ 8192)
+
+(deftype word () 'sb-vm:word)
+
+(defstruct (input-stream
+            (:predicate nil))
+  (fd nil :type word)
+  (left 0 :type word)
+  (buffer-start (sb-sys:sap-int
+                 (sb-alien::%make-alien (* sb-vm:n-byte-bits +buffer-size+)))
+   :type word)
+  (buffer-end 0 :type word)
+  (buffer-position 0 :type word))
+
+(defstruct (output-stream
+            (:predicate nil))
+  (fd nil :type word)
+  (buffer-start (sb-sys:sap-int
+                 (sb-alien::%make-alien (* sb-vm:n-byte-bits +buffer-size+)))
+                :type word)
+  (buffer-end 0 :type word)
+  (buffer-position 0 :type word))
 
 (defun open-file (file-stream
                   &key direction)
@@ -36,34 +56,11 @@
                           (function (values) sb-alien:long))
    (output-stream-buffer-start stream)))
 
-(defconstant +buffer-size+ (* 8192 2))
-
-(deftype word () 'sb-vm:word)
-
-(defstruct (input-stream
-            (:predicate nil))
-  (fd nil :type word)
-  (left 0 :type word)
-  (buffer-start (sb-sys:sap-int
-                 (sb-alien::%make-alien (* sb-vm:n-byte-bits +buffer-size+)))
-                :type word)
-  (buffer-end 0 :type word)
-  (buffer-position 0 :type word))
-
 (declaim (inline stream-end-of-file-p))
 (defun stream-end-of-file-p (stream)
   (and (>= (input-stream-buffer-position stream)
            (input-stream-buffer-end stream))
        (zerop (input-stream-left stream))))
-
-(defstruct (output-stream
-            (:predicate nil))
-  (fd nil :type word)
-  (buffer-start (sb-sys:sap-int
-                 (sb-alien::%make-alien (* sb-vm:n-byte-bits +buffer-size+)))
-                :type word)
-  (buffer-end 0 :type word)
-  (buffer-position 0 :type word))
 
 (declaim (inline sap-ref-24))
 (defun sap-ref-24 (sap offset)
