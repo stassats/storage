@@ -3,93 +3,156 @@
 ;;; This software is in the public domain and is
 ;;; provided with absolutely no warranty.
 
+(defpackage #:storage-test
+  (:use :cl))
+
 (in-package #:storage)
 
-(deftype word ()
-  'sb-vm:word)
+(defun open-file (file-stream
+                  &key direction)
+  (if (eql direction :output)
+      (let ((output (make-output-stream
+                     :fd (sb-sys:fd-stream-fd file-stream))))
+        (setf (output-stream-buffer-position output)
+              (output-stream-buffer-start output)
+              (output-stream-buffer-end output)
+              (+ (output-stream-buffer-start output)
+                 +buffer-size+))
+        output)
+      (make-input-stream
+       :fd (sb-sys:fd-stream-fd file-stream)
+       :left (file-length file-stream))))
 
-(defstruct mmap-stream
-  (beginning)
-  (length 0 :type word :read-only t)
-  (sap 0 :type word)
-  (end 0 :type word :read-only t))
+(defun close-input-stream (stream)
+  (sb-alien:alien-funcall
+   (sb-alien:extern-alien "free"
+                          (function (values) sb-alien:long))
+   (input-stream-buffer-start stream)))
 
-(defun scale-file (stream size)
-  (sb-posix:ftruncate (sb-sys:fd-stream-fd stream)
-                      size))
+(defun close-output-stream (stream)
+  (flush-buffer stream)
+  (sb-alien:alien-funcall
+   (sb-alien:extern-alien "free"
+                          (function (values) sb-alien:long))
+   (output-stream-buffer-start stream)))
 
-(defun mmap (file-stream
-             &key direction size)
-  (when (eql direction :output)
-    (scale-file file-stream size))
-  (let* ((sap (sb-posix:mmap nil
-                             (or size (file-length file-stream))
-                             (ecase direction
-                               (:input sb-posix:prot-read)
-                               (:output sb-posix:prot-write))
-                             sb-posix:map-shared
-                             (sb-sys:fd-stream-fd file-stream)
-                             0))
-         (sap-int (sb-sys:sap-int sap)))
-    (make-mmap-stream
-     :beginning sap
-     :sap sap-int
-     :length (or size (file-length file-stream))
-     :end (+ sap-int (or size (file-length file-stream))))))
+(defconstant +buffer-size+ (* 8192 2))
 
-(defun munmap (mmap-stream)
-  (sb-posix:munmap (mmap-stream-beginning mmap-stream)
-                   (mmap-stream-length mmap-stream))
-  (setf (mmap-stream-sap mmap-stream) 0))
+(deftype word () 'sb-vm:word)
+
+(defstruct (input-stream
+            (:predicate nil))
+  (fd nil :type word)
+  (left 0 :type word)
+  (buffer-start (sb-sys:sap-int
+                 (sb-alien::%make-alien (* sb-vm:n-byte-bits +buffer-size+)))
+                :type word)
+  (buffer-end 0 :type word)
+  (buffer-position 0 :type word))
 
 (declaim (inline stream-end-of-file-p))
 (defun stream-end-of-file-p (stream)
-  (>= (mmap-stream-sap stream)
-      (mmap-stream-end stream)))
+  (and (>= (input-stream-buffer-position stream)
+           (input-stream-buffer-end stream))
+       (zerop (input-stream-left stream))))
 
-;;;
+(defstruct (output-stream
+            (:predicate nil))
+  (fd nil :type word)
+  (buffer-start (sb-sys:sap-int
+                 (sb-alien::%make-alien (* sb-vm:n-byte-bits +buffer-size+)))
+                :type word)
+  (buffer-end 0 :type word)
+  (buffer-position 0 :type word))
 
-(declaim (inline sap-ref-24 (setf sap-ref-24)))
+(declaim (inline sap-ref-24))
 (defun sap-ref-24 (sap offset)
   (declare (optimize speed (safety 0))
            (fixnum offset))
-  (logior (ash (sb-sys:sap-ref-16 sap (1+ offset)) 8)
-          (sb-sys:sap-ref-8 sap offset)))
+  (mask-field (byte 24 0) (sb-sys:sap-ref-32 sap offset)))
 
-(defun (setf sap-ref-24) (value sap offset)
-  (declare (optimize speed (safety 0))
-           (fixnum offset)
-           ((unsigned-byte 24) value))
-  (setf (sb-sys:sap-ref-16 sap offset) (mask-field (byte 16 0) value))
-  (setf (sb-sys:sap-ref-8 sap (+ offset 2)) (ash value -16)))
-
-(defun signal-end-of-file (stream)
-  (error "End of file ~a" stream))
-
-(declaim (inline advance-stream))
-(defun advance-stream (n stream)
-  (declare (optimize (space 0))
-           (type word n))
-  (let* ((sap (mmap-stream-sap stream))
-         (new-position (sb-ext:truly-the word (+ sap n))))
-    (when (> new-position
-             (mmap-stream-end stream))
-      (signal-end-of-file stream))
-    (setf (mmap-stream-sap stream) new-position)
-    (sb-sys:int-sap sap)))
-
-(declaim (inline read-n-bytes))
-(defun read-n-bytes (n stream)
-  (declare (optimize speed)
-           (sb-ext:muffle-conditions sb-ext:compiler-note)
-           (type (integer 1 4) n))
+(declaim (inline n-sap-ref))
+(defun n-sap-ref (n sap &optional (offset 0))
   (funcall (ecase n
              (1 #'sb-sys:sap-ref-8)
              (2 #'sb-sys:sap-ref-16)
              (3 #'sap-ref-24)
              (4 #'sb-sys:sap-ref-32))
-           (advance-stream n stream)
-           0))
+           (sb-sys:int-sap sap)
+           offset))
+
+(declaim (inline unix-read))
+(defun unix-read (fd buf len)
+  (declare (optimize (sb-c::float-accuracy 0)
+                     (space 0)))
+  (declare (type sb-unix::unix-fd fd)
+           (type word len))
+  (sb-alien:alien-funcall
+   (sb-alien:extern-alien "read"
+                          (function sb-alien:int
+                                    sb-alien:int sb-alien:long sb-alien:int))
+   fd buf len))
+
+(declaim (inline unix-read))
+(defun unix-write (fd buf len)
+  (declare (optimize (sb-c::float-accuracy 0)
+                     (space 0)))
+  (declare (type sb-unix::unix-fd fd)
+           (type word len))
+  (sb-alien:alien-funcall
+   (sb-alien:extern-alien "write"
+                          (function sb-alien:int
+                                    sb-alien:int sb-alien:long sb-alien:int))
+   fd buf len))
+
+(defun fill-buffer (stream offset)
+  (let ((length (unix-read (input-stream-fd stream)
+                           (+ (input-stream-buffer-start stream) offset)
+                           (- +buffer-size+ offset))))
+    (setf (input-stream-buffer-end stream)
+          (+ (input-stream-buffer-start stream) (+ length offset)))
+    (decf (input-stream-left stream) length))
+  t)
+
+(defun refill-buffer (n stream)
+  (declare (type word n)
+           (input-stream stream))
+  (let ((left-n-bytes (- (input-stream-buffer-end stream)
+                         (input-stream-buffer-position stream))))
+    (when (> (- n left-n-bytes)
+             (input-stream-left stream))
+      (error "End of file ~a" stream))
+    (unless (zerop left-n-bytes)
+      
+      (setf (sb-sys:sap-ref-word (sb-sys:int-sap (input-stream-buffer-start stream)) 0)
+            (n-sap-ref left-n-bytes (input-stream-buffer-position stream))))
+    (fill-buffer stream left-n-bytes))
+  (let ((start (input-stream-buffer-start stream)))
+    (setf (input-stream-buffer-position stream)
+          (+ start n)))
+  t)
+
+(declaim (inline advance-input-stream))
+(defun advance-input-stream (n stream)
+  (declare (optimize (space 0))
+           (type word n)
+           (type input-stream stream))
+  (let* ((sap (input-stream-buffer-position stream))
+         (new-sap (sb-ext:truly-the word (+ sap n))))
+    (declare (word sap new-sap))
+    (cond ((> new-sap (input-stream-buffer-end stream))
+           (refill-buffer n stream)
+           (input-stream-buffer-start stream))
+          (t
+           (setf (input-stream-buffer-position stream)
+                 new-sap)
+           sap))))
+
+(declaim (inline read-n-bytes))
+(defun read-n-bytes (n stream)
+  (declare (optimize (space 0))
+           (type word n))
+  (n-sap-ref n (advance-input-stream n stream)))
 
 (declaim (inline read-n-signed-bytes))
 (defun read-n-signed-bytes (n stream)
@@ -101,20 +164,8 @@
              (2 #'sb-sys:signed-sap-ref-16)
              ;; (3 )
              (4 #'sb-sys:signed-sap-ref-32))
-           (advance-stream n stream)
+           (sb-sys:int-sap (advance-input-stream n stream))
            0))
-
-(declaim (inline write-n-bytes))
-(defun write-n-bytes (value n stream)
-  (declare (optimize speed)
-           (sb-ext:muffle-conditions sb-ext:compiler-note)
-           (fixnum n))
-  (ecase n
-    (1 (setf (sb-sys:sap-ref-8 (advance-stream n stream) 0) value))
-    (2 (setf (sb-sys:sap-ref-16 (advance-stream n stream) 0) value))
-    (3 (setf (sap-ref-24 (advance-stream n stream) 0) value))
-    (4 (setf (sb-sys:sap-ref-32 (advance-stream n stream) 0) value)))
-  t)
 
 (declaim (inline write-n-signed-bytes))
 (defun write-n-signed-bytes (value n stream)
@@ -122,14 +173,50 @@
            (sb-ext:muffle-conditions sb-ext:compiler-note)
            (fixnum n))
   (ecase n
-    (1 (setf (sb-sys:signed-sap-ref-8 (advance-stream n stream) 0)
+    (1 (setf (sb-sys:signed-sap-ref-8 (sb-sys:int-sap (advance-output-stream n stream)) 0)
              value))
-    (2 (setf (sb-sys:signed-sap-ref-16 (advance-stream n stream) 0)
+    (2 (setf (sb-sys:signed-sap-ref-16 (sb-sys:int-sap (advance-output-stream n stream)) 0)
              value))
     ;; (3 )
-    (4 (setf (sb-sys:signed-sap-ref-32 (advance-stream n stream) 0)
+    (4 (setf (sb-sys:signed-sap-ref-32 (sb-sys:int-sap (advance-output-stream n stream)) 0)
              value)))
   t)
+
+(defun flush-buffer (stream)
+  (unix-write (output-stream-fd stream)
+              (output-stream-buffer-start stream)
+              (- (output-stream-buffer-position stream)
+                 (output-stream-buffer-start stream))))
+
+(declaim (inline advance-output-stream))
+(defun advance-output-stream (n stream)
+  (declare (optimize (space 0) (safety 0))
+           (type word n)
+           (type output-stream stream)
+           ((integer 1 4) n))
+  (let* ((sap (output-stream-buffer-position stream))
+         (new-sap (sb-ext:truly-the word (+ sap n))))
+    (declare (word sap new-sap))
+    (cond ((> new-sap (output-stream-buffer-end stream))
+           (flush-buffer stream)
+           (setf (output-stream-buffer-position stream)
+                 (+ (output-stream-buffer-start stream)
+                    n))
+           (output-stream-buffer-start stream))
+          (t
+           (setf (output-stream-buffer-position stream)
+                 new-sap)
+           sap))))
+
+(declaim (inline write-n-bytes))
+(defun write-n-bytes (value n stream)
+  (declare (optimize (space 0))
+           (type word n))
+  (setf (sb-sys:sap-ref-32
+         (sb-sys:int-sap (advance-output-stream n stream))
+         0)
+        value))
+;;;
 
 (declaim (inline copy-mem))
 (defun copy-mem (from to length)
@@ -146,31 +233,31 @@
   (declare (type fixnum length)
            (optimize speed))
   (sb-sys:with-pinned-objects (string)
-    (let ((mmap-sap (advance-stream length stream))
+    (let ((sap (sb-sys:int-sap (advance-input-stream length stream)))
           (string-sap (sb-sys:vector-sap string)))
-      (copy-mem mmap-sap string-sap length)))
+      (copy-mem sap string-sap length)))
   string)
 
-(defun write-ascii-string-optimized (length string stream)
-  (declare (type fixnum length))
-  (sb-sys:with-pinned-objects (string)
-    (let ((mmap-sap (advance-stream length stream))
-          (string-sap (sb-sys:vector-sap string)))
-      (copy-mem string-sap mmap-sap length))))
+;;;
 
-(defmacro with-io-file ((stream file &key (direction :input) size)
+(defmacro with-io-file ((stream file
+                         &key append (direction :input))
                         &body body)
   (let ((fd-stream (gensym)))
     `(with-open-file (,fd-stream ,file
-                                 :direction (if (eql ,direction :output)
-                                                :io
-                                                ,direction)
-                                 :if-exists :supersede
-                                 :element-type '(unsigned-byte 8))
-       (let ((,stream (mmap ,fd-stream :direction ,direction :size ,size)))
+                                 :element-type '(unsigned-byte 8)
+                                 :direction ,direction
+                                 ,@(and (eql direction :output)
+                                        `(:if-exists ,(if append
+                                                          :append
+                                                          :supersede))))
+       (let ((,stream (open-file ,fd-stream :direction ,direction)))
          (unwind-protect
               (progn ,@body)
-           (progn (munmap ,stream)
-                  (when (eql ,direction :output)
-                    (sb-posix:fdatasync
-                     (sb-sys:fd-stream-fd ,fd-stream)))))))))
+           ,@(ecase direction
+               (:output
+                `((close-output-stream ,stream)
+                  (sb-posix:fdatasync
+                   (sb-sys:fd-stream-fd ,fd-stream))))
+               (:input
+                `((close-input-stream ,stream)))))))))

@@ -94,18 +94,6 @@
   (find slot-name (class-slots class) :key #'slot-definition-name))
 
 (defgeneric write-object (object stream))
-(defgeneric object-size (object))
-
-(defun measure-size ()
-  (let ((result +sequence-length+)) ;; number of classes
-    (map-data (lambda (class objects)
-                (when objects
-                  (incf result (object-size class))
-                  (dolist (object objects)
-                    (incf result
-                          (standard-object-size object))))))
-    (setf (fill-pointer *packages*) 0)
-    result))
 
 (defun assign-ids ()
   (let ((last-id 0))
@@ -143,9 +131,6 @@
   (call-reader (read-n-bytes 1 stream) stream))
 
 ;;; NIL
-
-(defmethod object-size ((object null))
-  1)
 
 (defmethod write-object ((object null) stream)
   (write-n-bytes #.(type-code 'null) 1 stream))
@@ -187,21 +172,6 @@
 
 (defun s-intern-existing (symbol symbols)
   (vector-push-extend symbol symbols))
-
-(defmethod object-size ((symbol symbol))
-  (+ 1 ;; type
-     (multiple-value-bind (package-id symbol-id
-                           new-package new-symbol) (s-intern symbol)
-       (declare (ignore package-id symbol-id))
-       (cond ((and new-package new-symbol)
-              (+ (object-size (package-name (symbol-package symbol)))
-                 (object-size (symbol-name symbol))))
-             (new-symbol
-              (+ +sequence-length+
-                 (object-size (symbol-name symbol))))
-             (t
-              (+ +sequence-length+
-                 +sequence-length+))))))
 
 (defmethod write-object ((symbol symbol) stream)
   (multiple-value-bind (package-id symbol-id
@@ -250,16 +220,6 @@
     symbol))
 
 ;;; Integer
-
-(defmethod object-size ((object integer))
-  (+ 1 ;; tag
-     (typecase object
-       (storage-fixnum +fixnum-length+)
-       (t (+ 1 ;; sign
-             1 ;; size
-             (* (ceiling (integer-length (abs object))
-                         (* +fixnum-length+ 8))
-                +fixnum-length+))))))
 
 (declaim (inline sign))
 (defun sign (n)
@@ -313,11 +273,6 @@
 
 ;;; Ratio
 
-(defmethod object-size ((object ratio))
-  (+ 1
-     (object-size (numerator object))
-     (object-size (denominator object))))
-
 (defmethod write-object ((object ratio) stream)
   (write-n-bytes #.(type-code 'ratio) 1 stream)
   (write-object (numerator object) stream)
@@ -328,12 +283,6 @@
      (read-next-object stream)))
 
 ;;; Float
-
-(defmethod object-size ((float float))
-  (+ 1
-     (etypecase float
-       (single-float 4)
-       (double-float 8))))
 
 (defun write-8-bytes (n stream)
   (write-n-bytes (ldb (byte 32 0) n) 4 stream)
@@ -360,11 +309,6 @@
 
 ;;; Complex
 
-(defmethod object-size ((complex complex))
-  (+ 1
-     (object-size (realpart complex))
-     (object-size (imagpart complex))))
-
 (defmethod write-object ((complex complex) stream)
   (write-n-bytes #.(type-code 'complex) 1 stream)
   (write-object (realpart complex) stream)
@@ -376,9 +320,6 @@
 
 ;;; Characters
 
-(defmethod object-size ((character character))
-  (+ 1 +char-length+))
-
 (defmethod write-object ((character character) stream)
   (write-n-bytes #.(type-code 'character) 1 stream)
   (write-n-bytes (char-code character) +char-length+ stream))
@@ -387,14 +328,6 @@
   (code-char (read-n-bytes +char-length+ stream)))
 
 ;;; Strings
-
-(defmethod object-size ((string string))
-  (typecase string
-    ((not simple-string) (call-next-method))
-    (ascii-string (+ 1 +sequence-length+ (length string)))
-    (t (+ 1 +sequence-length+
-          (* (length string)
-             +char-length+)))))
 
 (defun write-ascii-string (string stream)
   (declare (simple-string string))
@@ -414,7 +347,7 @@
     (simple-base-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
      (write-n-bytes (length string) +sequence-length+ stream)
-     (write-ascii-string-optimized (length string) string stream))
+     (write-ascii-string string stream))
     (ascii-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
      (write-n-bytes (length string) +sequence-length+ stream)
@@ -427,12 +360,12 @@
 (declaim (inline read-ascii-string))
 (defun read-ascii-string (length stream)
   (let ((string (make-string length :element-type 'base-char)))
-    #-sbcl
+    ;#-sbcl
     (loop for i below length
           do (setf (schar string i)
                    (code-char (read-n-bytes 1 stream))))
-    #+(and sbcl (or x86 x86-64))
-    (read-ascii-string-optimized length string stream)
+    ;; #+(and sbcl (or x86 x86-64))
+    ;; (read-ascii-string-optimized length string stream)
     string))
 
 (defreader ascii-string (stream)
@@ -447,14 +380,6 @@
     string))
 
 ;;; Pathname
-
-(defmethod object-size ((pathname pathname))
-  (+ 1
-     (object-size (pathname-name pathname))
-     (object-size (pathname-directory pathname))
-     (object-size (pathname-device pathname))
-     (object-size (pathname-type pathname))
-     (object-size (pathname-version pathname))))
 
 (defmethod write-object ((pathname pathname) stream)
   (write-n-bytes #.(type-code 'pathname) 1 stream)
@@ -474,26 +399,8 @@
 
 ;;; Cons
 
-(defun cons-size (cons)
-  (loop for cdr = cons then (cdr cdr)
-        sum (object-size (alexandria:ensure-car cdr))
-        while (consp cdr)))
-
-(defmethod object-size ((list cons))
-  (cond ((and (alexandria:proper-list-p list)
-              (list-of-objects-p list))
-         (+ 1
-            (* (length list) +id-length+)
-            +sequence-length+))
-        ((alexandria:circular-list-p list)
-         (error "Can't store circular lists"))
-        (t
-         (+ 1 (cons-size list)
-            1))))
-
 (defmethod write-object ((list cons) stream)
-  (cond #-sbcl
-        ((alexandria:circular-list-p list)
+  (cond ((alexandria:circular-list-p list)
          (error "Can't store circular lists"))
         ((and (alexandria:proper-list-p list)
               (list-of-objects-p list))
@@ -540,15 +447,6 @@
 
 ;;; Simple-vector
 
-(defmethod object-size ((vector vector))
-  (typecase vector
-    (simple-vector
-     (+ 1 ;; type
-        +sequence-length+
-        (reduce #'+ vector :key #'object-size)))
-    (t
-     (call-next-method))))
-
 (defmethod write-object ((vector vector) stream)
   (typecase vector
     (simple-vector
@@ -570,20 +468,6 @@
     vector))
 
 ;;; Array
-
-(defun array-size (array)
-  (loop for i below (array-total-size array)
-        sum (object-size (row-major-aref array i))))
-
-(defmethod object-size ((array array))
-  (+ 1 ;; type
-     (object-size (array-dimensions array))
-     (if (array-has-fill-pointer-p array)
-         (+ 1 +sequence-length+)
-         2) ;; 0 + 0
-     (object-size (array-element-type array))
-     1 ;; adjustable-p
-     (array-size array)))
 
 (defun boolify (x)
   (if x
@@ -630,20 +514,6 @@
             hash-table test))
     test-id))
 
-(defun measure-hash-table-size (hash-table)
-  (loop for key being the hash-keys of hash-table
-        using (hash-value value)
-        sum (+ (object-size key)
-               (object-size value))))
-
-(defmethod object-size ((hash-table hash-table))
-  (check-hash-table-test hash-table)
-  (+ 1
-     1 ;; test-id
-     +hash-table-length+
-     (measure-hash-table-size hash-table)
-     1)) ;; +end+
-
 (defmethod write-object ((hash-table hash-table) stream)
   (write-n-bytes #.(type-code 'hash-table) 1 stream)
   (write-n-bytes (check-hash-table-test hash-table) 1 stream)
@@ -666,17 +536,6 @@
     table))
 
 ;;; storable-class
-
-(defmethod object-size ((class storable-class))
-  (unless (class-finalized-p class)
-    (finalize-inheritance class))
-  (+ 1 ;; type
-     (object-size (class-name class))
-     +sequence-length+ ;; list length
-     (reduce #'+ (slots-to-store class)
-             :key (lambda (x)
-                    (object-size (slot-definition-name x))))
-     +id-length+)) ;; size of objects
 
 (defmethod write-object ((class storable-class) stream)
   (write-n-bytes #.(type-code 'storable-class) 1 stream)
@@ -707,10 +566,6 @@
 
 ;;; identifiable
 
-(defmethod object-size ((object identifiable))
-  (+ 1 ;; type
-     +id-length+))
-
 (defmethod write-object ((object identifiable) stream)
   (write-n-bytes #.(type-code 'identifiable) 1 stream)
   (write-n-bytes (id object) +id-length+ stream))
@@ -723,21 +578,7 @@
   (get-instance (read-n-bytes +id-length+ stream)))
 
 ;;; standard-object
-
-(defun standard-object-size (object)
-  (let ((slots (slot-locations-and-initforms (class-of object))))
-    (declare (simple-vector slots))
-    (+ 1           ;; data type
-       +id-length+ ;; id
-       (loop for (location . initform) across slots
-             sum (let ((value (standard-instance-access object
-                                                        location)))
-                   (if (eql value initform)
-                       0
-                       (+ 1 ;; slot id
-                          (object-size value)))))
-       1))) ;; end-of-slots
-
+;;;
 ;;; Can't use write-object method, because it would conflict with
 ;;; writing a pointer to a standard object
 (defun write-standard-object (object stream)
@@ -847,6 +688,5 @@
     (when (storage-data storage)
       (with-packages
         (with-io-file (stream (or file (storage-file storage))
-                       :direction :output
-                       :size (measure-size))
+                       :direction :output)
           (dump-data stream))))))

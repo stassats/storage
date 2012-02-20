@@ -6,9 +6,7 @@
 
 (defun save-test (type amount &key object-size)
   (let ((object (create-test-object type :object-size object-size)))
-    (with-io-file (stream *test-file* :direction :output
-                                      :size (+ (object-size amount)
-                                               (* (object-size object) amount)))
+    (with-io-file (stream *test-file* :direction :output)
       (write-object amount stream)
       (loop repeat amount
             do (write-object object stream)))))
