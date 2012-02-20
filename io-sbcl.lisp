@@ -14,7 +14,8 @@
   (fd nil :type word)
   (left 0 :type word)
   (buffer-start (sb-sys:sap-int
-                 (sb-alien::%make-alien (* sb-vm:n-byte-bits +buffer-size+)))
+                 (sb-alien::%make-alien (* sb-vm:n-byte-bits
+                                           (+ +buffer-size+ 3))))
    :type word)
   (buffer-end 0 :type word)
   (buffer-position 0 :type word))
@@ -23,7 +24,8 @@
             (:predicate nil))
   (fd nil :type word)
   (buffer-start (sb-sys:sap-int
-                 (sb-alien::%make-alien (* sb-vm:n-byte-bits +buffer-size+)))
+                 (sb-alien::%make-alien (* sb-vm:n-byte-bits
+                                           (+ +buffer-size+ 3))))
                 :type word)
   (buffer-end 0 :type word)
   (buffer-position 0 :type word))
@@ -75,7 +77,7 @@
              (2 #'sb-sys:sap-ref-16)
              (3 #'sap-ref-24)
              (4 #'sb-sys:sap-ref-32))
-           (sb-sys:int-sap sap)
+           sap
            offset))
 
 (declaim (inline unix-read))
@@ -120,9 +122,8 @@
              (input-stream-left stream))
       (error "End of file ~a" stream))
     (unless (zerop left-n-bytes)
-      
       (setf (sb-sys:sap-ref-word (sb-sys:int-sap (input-stream-buffer-start stream)) 0)
-            (n-sap-ref left-n-bytes (input-stream-buffer-position stream))))
+            (n-sap-ref left-n-bytes (sb-sys:int-sap (input-stream-buffer-position stream)))))
     (fill-buffer stream left-n-bytes))
   (let ((start (input-stream-buffer-start stream)))
     (setf (input-stream-buffer-position stream)
@@ -139,11 +140,11 @@
     (declare (word sap new-sap))
     (cond ((> new-sap (input-stream-buffer-end stream))
            (refill-buffer n stream)
-           (input-stream-buffer-start stream))
+           (sb-sys:int-sap (input-stream-buffer-start stream)))
           (t
            (setf (input-stream-buffer-position stream)
                  new-sap)
-           sap))))
+           (sb-sys:int-sap sap)))))
 
 (declaim (inline read-n-bytes))
 (defun read-n-bytes (n stream)
@@ -161,7 +162,7 @@
              (2 #'sb-sys:signed-sap-ref-16)
              ;; (3 )
              (4 #'sb-sys:signed-sap-ref-32))
-           (sb-sys:int-sap (advance-input-stream n stream))
+           (advance-input-stream n stream)
            0))
 
 (declaim (inline write-n-signed-bytes))
@@ -170,12 +171,12 @@
            (sb-ext:muffle-conditions sb-ext:compiler-note)
            (fixnum n))
   (ecase n
-    (1 (setf (sb-sys:signed-sap-ref-8 (sb-sys:int-sap (advance-output-stream n stream)) 0)
+    (1 (setf (sb-sys:signed-sap-ref-8 (advance-output-stream n stream) 0)
              value))
-    (2 (setf (sb-sys:signed-sap-ref-16 (sb-sys:int-sap (advance-output-stream n stream)) 0)
+    (2 (setf (sb-sys:signed-sap-ref-16 (advance-output-stream n stream) 0)
              value))
     ;; (3 )
-    (4 (setf (sb-sys:signed-sap-ref-32 (sb-sys:int-sap (advance-output-stream n stream)) 0)
+    (4 (setf (sb-sys:signed-sap-ref-32 (advance-output-stream n stream) 0)
              value)))
   t)
 
@@ -199,18 +200,18 @@
            (setf (output-stream-buffer-position stream)
                  (+ (output-stream-buffer-start stream)
                     n))
-           (output-stream-buffer-start stream))
+           (sb-sys:int-sap (output-stream-buffer-start stream)))
           (t
            (setf (output-stream-buffer-position stream)
                  new-sap)
-           sap))))
+           (sb-sys:int-sap sap)))))
 
 (declaim (inline write-n-bytes))
 (defun write-n-bytes (value n stream)
   (declare (optimize (space 0))
            (type word n))
   (setf (sb-sys:sap-ref-32
-         (sb-sys:int-sap (advance-output-stream n stream))
+         (advance-output-stream n stream)
          0)
         value))
 ;;;
@@ -230,7 +231,7 @@
   (declare (type fixnum length)
            (optimize speed))
   (sb-sys:with-pinned-objects (string)
-    (let ((sap (sb-sys:int-sap (advance-input-stream length stream)))
+    (let ((sap (advance-input-stream length stream))
           (string-sap (sb-sys:vector-sap string)))
       (copy-mem sap string-sap length)))
   string)
