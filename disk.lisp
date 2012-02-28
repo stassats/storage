@@ -681,7 +681,8 @@
         (*indexes* *indexes*))
     (with-packages
       (read-file (or file (storage-file *storage*))))
-    (interlink-all-objects-first-time)))
+    (interlink-all-objects-first-time)
+    (setf (modified storage) nil)))
 
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
@@ -689,4 +690,5 @@
       (with-packages
         (with-io-file (stream (or file (storage-file storage))
                        :direction :output)
-          (dump-data stream))))))
+          (dump-data stream)))
+      (setf (modified storage) nil))))

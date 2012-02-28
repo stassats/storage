@@ -30,5 +30,6 @@
    #:count
    #:slot-unit
    #:storage-file
-   #:find-slot))
+   #:find-slot
+   #:modified))
 

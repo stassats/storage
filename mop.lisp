@@ -6,7 +6,10 @@
 (in-package #:storage)
 
 (defclass storage ()
-  ((data :initform nil
+  ((modified :initarg :modified
+               :initform nil
+               :accessor modified)
+   (data :initform nil
          :accessor storage-data)
    (file :initform nil
          :initarg :file
