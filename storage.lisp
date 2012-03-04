@@ -31,14 +31,21 @@
       (funcall function
                class (objects-of-class class)))))
 
+(defun map-type-class (superclass function)
+  (dolist (class (storage-data *storage*))
+    (when (subtypep class superclass)
+      (map nil function
+           (objects-of-class class)))))
+
 (defun map-type (type function)
-  (let ((type (if (eql type t)
-                  'identifiable
-                  type)))
-    (dolist (class (storage-data *storage*))
-      (when (subtypep class type)
-        (map nil function
-             (objects-of-class class))))))
+  (let ((class (and (symbolp type)
+                    (find-class type nil))))
+    (if class
+        (map-type-class class function)
+        (dolist (class (storage-data *storage*))
+          (dolist (object (objects-of-class class))
+            (when (typep object type)
+              (funcall function object)))))))
 
 (defmethod update-instance-for-different-class
     :after ((previous identifiable) (current identifiable) &key)
