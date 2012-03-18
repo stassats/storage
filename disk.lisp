@@ -233,7 +233,7 @@
   (write-n-signed-bytes n +fixnum-length+ stream))
 
 (defun write-bignum (n stream)
-  (declare ((and integer (not storage-fixnum)) n))
+  (declare (type (and integer (not storage-fixnum)) n))
   (write-n-bytes #.(type-code 'bignum) 1 stream)
   (write-n-bytes (sign n) 1 stream)
   (let* ((fixnum-bits (* +fixnum-length+ 8))

@@ -146,10 +146,8 @@
           (slots-with-relations class))
     (compute-search-key class slots)))
 
-(defmethod compute-slots :around ((class storable-class))
-  (let ((slots (call-next-method)))
-    (initialize-class-slots class slots)
-    slots))
+(defmethod finalize-inheritance :after ((class storable-class))
+  (initialize-class-slots class (class-slots class)))
 
 (defun find-slot (slot-name class)
   (find slot-name (class-slots class)
@@ -174,21 +172,3 @@
 (defmethod initialize-instance :after ((class storable-class) &key)
   (when (class-storage class)
     (pushnew class (storage-data (class-storage class)) :test #'eq)))
-
-;;;
-
-(defclass identifiable (standard-object)
-  ((id :accessor id
-       :initform nil
-       :storep nil
-       :read-only-p t)
-   (relations :initform nil
-              :accessor relations
-              :storep nil
-              :read-only-p t))
-  (:metaclass storable-class))
-
-(defgeneric relation (object type))
-
-(defmethod relation (object type)
-  (getf (relations object) type))

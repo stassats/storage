@@ -5,6 +5,24 @@
 
 (in-package #:storage)
 
+(defclass identifiable (standard-object)
+  ((id :accessor id
+       :initform nil
+       :storep nil
+       :read-only-p t)
+   (relations :initform nil
+              :accessor relations
+              :storep nil
+              :read-only-p t))
+  (:metaclass storable-class))
+
+(defgeneric relation (object type))
+
+(defmethod relation (object type)
+  (getf (relations object) type))
+
+;;;
+
 (defvar *storage* nil)
 
 (defun objects-of-type (type)
