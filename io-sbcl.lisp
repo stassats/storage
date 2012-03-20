@@ -9,13 +9,16 @@
 
 (deftype word () 'sb-vm:word)
 
+(defun allocate-buffer ()
+  (sb-sys:sap-int
+   (sb-alien:alien-sap
+    (sb-alien:make-alien char (+ +buffer-size+ 3)))))
+
 (defstruct (input-stream
             (:predicate nil))
   (fd nil :type word)
   (left 0 :type word)
-  (buffer-start (sb-sys:sap-int
-                 (sb-alien::%make-alien (* sb-vm:n-byte-bits
-                                           (+ +buffer-size+ 3))))
+  (buffer-start (allocate-buffer)
    :type word)
   (buffer-end 0 :type word)
   (buffer-position 0 :type word))
@@ -23,9 +26,7 @@
 (defstruct (output-stream
             (:predicate nil))
   (fd nil :type word)
-  (buffer-start (sb-sys:sap-int
-                 (sb-alien::%make-alien (* sb-vm:n-byte-bits
-                                           (+ +buffer-size+ 3))))
+  (buffer-start (allocate-buffer)
                 :type word)
   (buffer-end 0 :type word)
   (buffer-position 0 :type word))
@@ -82,22 +83,16 @@
 
 (declaim (inline unix-read))
 (defun unix-read (fd buf len)
-  (declare (optimize (sb-c::float-accuracy 0)
-                     (space 0)))
-  (declare (type sb-unix::unix-fd fd)
-           (type word len))
+  (declare (type word fd len))
   (sb-alien:alien-funcall
    (sb-alien:extern-alien "read"
                           (function sb-alien:int
                                     sb-alien:int sb-alien:long sb-alien:int))
    fd buf len))
 
-(declaim (inline unix-read))
+(declaim (inline unix-write))
 (defun unix-write (fd buf len)
-  (declare (optimize (sb-c::float-accuracy 0)
-                     (space 0)))
-  (declare (type sb-unix::unix-fd fd)
-           (type word len))
+  (declare (type word fd len))
   (sb-alien:alien-funcall
    (sb-alien:extern-alien "write"
                           (function sb-alien:int
@@ -122,8 +117,10 @@
              (input-stream-left stream))
       (error "End of file ~a" stream))
     (unless (zerop left-n-bytes)
-      (setf (sb-sys:sap-ref-word (sb-sys:int-sap (input-stream-buffer-start stream)) 0)
-            (n-sap-ref left-n-bytes (sb-sys:int-sap (input-stream-buffer-position stream)))))
+      (setf (sb-sys:sap-ref-word
+             (sb-sys:int-sap (input-stream-buffer-start stream)) 0)
+            (n-sap-ref left-n-bytes
+                       (sb-sys:int-sap (input-stream-buffer-position stream)))))
     (fill-buffer stream left-n-bytes))
   (let ((start (input-stream-buffer-start stream)))
     (setf (input-stream-buffer-position stream)
