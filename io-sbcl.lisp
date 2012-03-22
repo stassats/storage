@@ -8,6 +8,7 @@
 (defconstant +buffer-size+ 8192)
 
 (deftype word () 'sb-vm:word)
+(deftype signed-word () 'sb-vm:signed-word)
 
 (defun allocate-buffer ()
   (sb-sys:sap-int
@@ -129,8 +130,7 @@
 
 (declaim (inline advance-input-stream))
 (defun advance-input-stream (n stream)
-  (declare (optimize (space 0))
-           (type word n)
+  (declare (type (and (integer 1) word) n)
            (type input-stream stream))
   (let* ((sap (input-stream-buffer-position stream))
          (new-sap (sb-ext:truly-the word (+ sap n))))
@@ -145,8 +145,7 @@
 
 (declaim (inline read-n-bytes))
 (defun read-n-bytes (n stream)
-  (declare (optimize (space 0))
-           (type word n))
+  (declare (type (integer 1 4) n))
   (n-sap-ref n (advance-input-stream n stream)))
 
 (declaim (inline read-n-signed-bytes))
@@ -185,7 +184,7 @@
 
 (declaim (inline advance-output-stream))
 (defun advance-output-stream (n stream)
-  (declare (optimize (space 0) (safety 0))
+  (declare (optimize (safety 0))
            (type word n)
            (type output-stream stream)
            ((integer 1 4) n))
@@ -215,22 +214,47 @@
 
 (declaim (inline copy-mem))
 (defun copy-mem (from to length)
-  (let ((words-end (- length (rem length sb-vm:n-word-bytes))))
-    (loop for i by sb-vm:n-word-bytes below words-end
+  (declare (word length))
+  (let ((words-end (sb-ext:truly-the word
+                                     (- length
+                                        (rem length sb-vm:n-word-bytes)))))
+    (loop for i fixnum by sb-vm:n-word-bytes below words-end
           do (setf (sb-sys:sap-ref-word to i)
                    (sb-sys:sap-ref-word from i)))
-    (loop for i from words-end below length
+    (loop for i fixnum from words-end below length
           do (setf (sb-sys:sap-ref-8 to i)
                    (sb-sys:sap-ref-8 from i)))))
 
 (declaim (inline read-ascii-string-optimized))
 (defun read-ascii-string-optimized (length string stream)
-  (declare (type fixnum length)
-           (optimize speed))
+  (declare (type word length)
+           (optimize speed)
+           (sb-ext:muffle-conditions sb-ext:compiler-note))
   (sb-sys:with-pinned-objects (string)
-    (let ((sap (advance-input-stream length stream))
-          (string-sap (sb-sys:vector-sap string)))
-      (copy-mem sap string-sap length)))
+    (let* ((sap (input-stream-buffer-position stream))
+           (string-sap (sb-sys:vector-sap string))
+           (new-sap (sb-ext:truly-the word (+ sap length))))
+      (declare (type word sap new-sap))
+      (cond ((<= new-sap (input-stream-buffer-end stream))
+             (copy-mem (sb-sys:int-sap sap) string-sap length)
+             (setf (input-stream-buffer-position stream)
+                   new-sap))
+            ((<= length +buffer-size+)
+             (let* ((start (input-stream-buffer-start stream))
+                    (left (- (input-stream-buffer-end stream) sap))
+                    (left-length (sb-ext:truly-the word (- length left))))
+               (declare (word left left-length))
+               (when (> left-length (input-stream-left stream))
+                 (error "End of file ~a" stream))
+               (copy-mem (sb-sys:int-sap sap) string-sap left)
+               (fill-buffer stream 0)
+               (copy-mem (sb-sys:int-sap start)
+                         (sb-sys:sap+ string-sap left) left-length)
+               (setf (input-stream-buffer-position stream)
+                     (sb-ext:truly-the word (+ start left-length)))))
+            (t
+             (error "Strings of more than ~a are not supported yet."
+                    +buffer-size+)))))
   string)
 
 ;;;

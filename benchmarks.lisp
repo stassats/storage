@@ -29,8 +29,7 @@
 (defun identity-test (x &optional (mode :both))
   (with-packages
     (when (member mode '(:both :write))
-      (with-io-file (stream *test-file* :direction :output
-                                        :size (object-size x))
+      (with-io-file (stream *test-file* :direction :output)
         (setf (fill-pointer *packages*) 0)
         (write-object x stream))))
   (with-packages
@@ -46,6 +45,9 @@
 
 (defmethod create-test-object ((type (eql 'fixnum)) &key)
   -1)
+
+(defmethod create-test-object ((type (eql 'string)) &key object-size)
+  (make-string (or object-size 10000)))
 
 (defun class-preallocation-test (storage)
   (loop for class in (storage-data storage)
