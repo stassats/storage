@@ -257,6 +257,37 @@
                     +buffer-size+)))))
   string)
 
+(declaim (inline write-ascii-string-optimized))
+(defun write-ascii-string-optimized (string stream)
+  (declare (optimize speed)
+           (simple-base-string string)
+           (sb-ext:muffle-conditions sb-ext:compiler-note))
+  (sb-sys:with-pinned-objects (string)
+    (let* ((length (length string))
+           (position (output-stream-buffer-position stream))
+           (string-sap (sb-sys:vector-sap string))
+           (new-position (sb-ext:truly-the word (+ position length))))
+      (declare (type word position new-position))
+      (cond ((<= new-position (output-stream-buffer-end stream))
+             (copy-mem string-sap (sb-sys:int-sap position) length)
+             (setf (output-stream-buffer-position stream)
+                   new-position))
+            ((<= length +buffer-size+)
+             (let* ((start (output-stream-buffer-start stream))
+                    (left (- (output-stream-buffer-end stream) position))
+                    (left-length (sb-ext:truly-the word (- length left))))
+               (declare (word left left-length))
+               (copy-mem string-sap (sb-sys:int-sap position) left)
+               (flush-buffer stream)
+               (copy-mem (sb-sys:sap+ string-sap left)
+                         (sb-sys:int-sap start) left-length)
+               (setf (output-stream-buffer-position stream)
+                     (sb-ext:truly-the word (+ start left-length)))))
+            (t
+             (error "Strings of more than ~a are not supported yet."
+                    +buffer-size+)))))
+  string)
+
 ;;;
 
 (defmacro with-io-file ((stream file

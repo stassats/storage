@@ -347,7 +347,7 @@
     (simple-base-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
      (write-n-bytes (length string) +sequence-length+ stream)
-     (write-ascii-string string stream))
+     (write-ascii-string-optimized string stream))
     (ascii-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
      (write-n-bytes (length string) +sequence-length+ stream)
