@@ -278,6 +278,8 @@
                     (left-length (sb-ext:truly-the word (- length left))))
                (declare (word left left-length))
                (copy-mem string-sap (sb-sys:int-sap position) left)
+               (setf (output-stream-buffer-position stream)
+                     (output-stream-buffer-end stream))
                (flush-buffer stream)
                (copy-mem (sb-sys:sap+ string-sap left)
                          (sb-sys:int-sap start) left-length)

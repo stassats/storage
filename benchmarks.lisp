@@ -50,7 +50,7 @@
   (make-string (or object-size 10000)))
 
 (defmethod create-test-object ((type (eql 'constant-string)) &key)
-  #.(coerce "AAAAAAAAAAAAAAAAdddddddddddddddddddddsssssssssssss" 'simple-base-string))
+  #.(coerce "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" 'simple-base-string))
 
 (defun class-preallocation-test (storage)
   (loop for class in (storage-data storage)
