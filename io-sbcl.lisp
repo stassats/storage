@@ -8,12 +8,14 @@
 (defconstant +buffer-size+ 8192)
 
 (deftype word () 'sb-vm:word)
-(deftype signed-word () 'sb-vm:signed-word)
 
 (defun allocate-buffer ()
   (sb-sys:sap-int
    (sb-alien:alien-sap
-    (sb-alien:make-alien char (+ +buffer-size+ 3)))))
+    (sb-alien:make-alien char
+                         ;; alignment
+                         (+ +buffer-size+
+                            (1- sb-vm:n-word-bytes))))))
 
 (defstruct (input-stream
             (:predicate nil))
@@ -215,15 +217,9 @@
 (declaim (inline copy-mem))
 (defun copy-mem (from to length)
   (declare (word length))
-  (let ((words-end (sb-ext:truly-the word
-                                     (- length
-                                        (rem length sb-vm:n-word-bytes)))))
-    (loop for i fixnum by sb-vm:n-word-bytes below words-end
-          do (setf (sb-sys:sap-ref-word to i)
-                   (sb-sys:sap-ref-word from i)))
-    (loop for i fixnum from words-end below length
-          do (setf (sb-sys:sap-ref-8 to i)
-                   (sb-sys:sap-ref-8 from i)))))
+  (loop for i fixnum by sb-vm:n-word-bytes to length
+        do (setf (sb-sys:sap-ref-word to i)
+                 (sb-sys:sap-ref-word from i))))
 
 (declaim (inline read-ascii-string-optimized))
 (defun read-ascii-string-optimized (length string stream)
