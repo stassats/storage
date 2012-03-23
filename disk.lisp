@@ -67,7 +67,7 @@
 (defconstant +sequence-length+ 2)
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defconstant +fixnum-length+ 4))
-(defconstant +char-length+ 2)
+(defconstant +char-length+ 3)
 (defconstant +id-length+ 3)
 (defconstant +hash-table-length+ 3)
 

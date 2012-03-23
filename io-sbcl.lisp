@@ -256,7 +256,7 @@
 (declaim (inline write-ascii-string-optimized))
 (defun write-ascii-string-optimized (string stream)
   (declare (optimize speed)
-           (simple-base-string string)
+           (simple-string string)
            (sb-ext:muffle-conditions sb-ext:compiler-note))
   (sb-sys:with-pinned-objects (string)
     (let* ((length (length string))
