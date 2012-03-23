@@ -319,7 +319,8 @@
                (setf (output-stream-buffer-position stream)
                      (output-stream-buffer-end stream))
                (flush-buffer stream)
-               (copy-mem-non-base-string (sb-sys:sap+ string-sap left)
+               (copy-mem-non-base-string (sb-sys:sap+ string-sap
+                                                      (* left 4))
                                          (sb-sys:int-sap start) left-length)
                (setf (output-stream-buffer-position stream)
                      (sb-ext:truly-the word (+ start left-length)))))
