@@ -331,13 +331,23 @@
 
 (defun write-ascii-string (string stream)
   (declare (simple-string string))
+  (write-n-bytes #.(type-code 'ascii-string) 1 stream)
+  (write-n-bytes (length string) +sequence-length+ stream)
+  #-(and sb-unicode (or x86 x86-64))
   (loop for char across string
-        do (write-n-bytes (char-code char) 1 stream)))
+        do (write-n-bytes (char-code char) 1 stream))
+  #+(and sb-unicode (or x86 x86-64))
+  (write-ascii-non-base-string-optimized string stream))
 
 (defun write-multibyte-string (string stream)
   (declare (simple-string string))
+  (write-n-bytes #.(type-code 'string) 1 stream)
+  (write-n-bytes (length string) +sequence-length+ stream)
+  #-(and sb-unicode (or x86 x86-64))
   (loop for char across string
-        do (write-n-bytes (char-code char) +char-length+ stream)))
+        do (write-n-bytes (char-code char) +char-length+ stream))
+  #+(and sb-unicode (or x86 x86-64))
+  (write-multibyte-string-optimized string stream))
 
 (defmethod write-object ((string string) stream)
   (etypecase string
@@ -349,12 +359,8 @@
      (write-n-bytes (length string) +sequence-length+ stream)
      (write-ascii-string-optimized string stream))
     (ascii-string
-     (write-n-bytes #.(type-code 'ascii-string) 1 stream)
-     (write-n-bytes (length string) +sequence-length+ stream)
      (write-ascii-string string stream))
     (string
-     (write-n-bytes #.(type-code 'string) 1 stream)
-     (write-n-bytes (length string) +sequence-length+ stream)
      (write-multibyte-string string stream))))
 
 (declaim (inline read-ascii-string))

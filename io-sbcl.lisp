@@ -286,6 +286,48 @@
                     +buffer-size+)))))
   string)
 
+(declaim (inline copy-mem-non-base-string))
+(defun copy-mem-non-base-string (from to length)
+  (declare (word length)
+           (optimize (safety 0)))
+  (loop for string-index fixnum by 4
+        for i fixnum below length
+        do (setf (sb-sys:sap-ref-8 to i)
+                 (sb-sys:sap-ref-8 from string-index))))
+
+(declaim (inline write-ascii-non-base-string-optimized))
+(defun write-ascii-non-base-string-optimized (string stream)
+  (declare (optimize speed)
+           (simple-string string)
+           (sb-ext:muffle-conditions sb-ext:compiler-note))
+  (sb-sys:with-pinned-objects (string)
+    (let* ((length (length string))
+           (position (output-stream-buffer-position stream))
+           (string-sap (sb-sys:vector-sap string))
+           (new-position (sb-ext:truly-the word (+ position length))))
+      (declare (type word position new-position))
+      (cond ((<= new-position (output-stream-buffer-end stream))
+             (copy-mem-non-base-string string-sap (sb-sys:int-sap position) length)
+             (setf (output-stream-buffer-position stream)
+                   new-position))
+            ((<= length +buffer-size+)
+             (let* ((start (output-stream-buffer-start stream))
+                    (left (- (output-stream-buffer-end stream) position))
+                    (left-length (sb-ext:truly-the word (- length left))))
+               (declare (word left left-length))
+               (copy-mem-non-base-string string-sap (sb-sys:int-sap position) left)
+               (setf (output-stream-buffer-position stream)
+                     (output-stream-buffer-end stream))
+               (flush-buffer stream)
+               (copy-mem-non-base-string (sb-sys:sap+ string-sap left)
+                                         (sb-sys:int-sap start) left-length)
+               (setf (output-stream-buffer-position stream)
+                     (sb-ext:truly-the word (+ start left-length)))))
+            (t
+             (error "Strings of more than ~a are not supported yet."
+                    +buffer-size+)))))
+  string)
+
 ;;;
 
 (defmacro with-io-file ((stream file
