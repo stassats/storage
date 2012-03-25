@@ -475,34 +475,48 @@
 
 ;;; Array
 
-(defun boolify (x)
-  (if x
-      1
-      0))
-
 (defmethod write-object ((array array) stream)
   (write-n-bytes #.(type-code 'array) 1 stream)
-  (write-object (array-dimensions array) stream)
-  (cond ((array-has-fill-pointer-p array)
-         (write-n-bytes 1 1 stream)
-         (write-n-bytes (fill-pointer array) +sequence-length+ stream))
-        (t
-         (write-n-bytes 0 2 stream)))
-  (write-object (array-element-type array) stream)
-  (write-n-bytes (boolify (adjustable-array-p array)) 1 stream)
-  (loop for i below (array-total-size array)
-        do (write-object (row-major-aref array i) stream)))
+  (let ((byte 0)
+        (fp (adjustable-array-p array))
+        (type (array-element-type array)))
+    (declare (type (unsigned-byte 8) byte))
+    (when fp
+      (setf byte 1))
+    (when (adjustable-array-p array)
+      (setf (ldb (byte 1 1) byte) 1))
+    (when (eq type t)
+      (setf (ldb (byte 1 2) byte) 1))
+    (write-n-bytes byte 1 stream)
+    (when fp
+      (write-n-bytes (fill-pointer array) +sequence-length+ stream))
+    (unless (eq type t)
+      (write-object (array-element-type array) stream))
+    (write-object (array-dimensions array) stream)
+    (loop for i below (array-total-size array)
+          do (write-object (row-major-aref array i) stream))))
 
-(defun read-array-fill-pointer (stream)
-  (if (plusp (read-n-bytes 1 stream))
-      (read-n-bytes +sequence-length+ stream)
-      (not (read-n-bytes 1 stream))))
+(declaim (inline bit-test))
+(defun bit-test (byte index)
+  (declare (type (unsigned-byte 8) byte)
+           (type (integer 0 7) index))
+  (ldb-test (byte 1 index) byte))
+
+(declaim (inline read-array-fill-pointer))
+(defun read-array-fill-pointer (byte stream)
+  (declare (type (unsigned-byte 8) byte))
+  (and (bit-test byte 0)
+       (read-n-bytes +sequence-length+ stream)))
 
 (defreader array (stream)
-  (let ((array (make-array (read-next-object stream)
-                           :fill-pointer (read-array-fill-pointer stream)
-                           :element-type (read-next-object stream)
-                           :adjustable (plusp (read-n-bytes 1 stream)))))
+  (let* ((byte (read-n-bytes 1 stream))
+         (fill-pointer (read-array-fill-pointer byte stream))
+         (array (make-array (read-next-object stream)
+                            :fill-pointer fill-pointer
+                            :element-type (if (bit-test byte 2)
+                                              t
+                                              (read-next-object stream))
+                            :adjustable (bit-test byte 1))))
     (loop for i below (array-total-size array)
           do (setf (row-major-aref array i) (read-next-object stream)))
     array))

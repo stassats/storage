@@ -5,11 +5,12 @@
 (defvar *test-file* #p"/tmp/test.db")
 
 (defun save-test (type amount &key object-size)
-  (let ((object (create-test-object type :object-size object-size)))
-    (with-io-file (stream *test-file* :direction :output)
-      (write-object amount stream)
-      (loop repeat amount
-            do (write-object object stream)))))
+  (with-packages
+   (let ((object (create-test-object type :object-size object-size)))
+     (with-io-file (stream *test-file* :direction :output)
+       (write-object amount stream)
+       (loop repeat amount
+             do (write-object object stream))))))
 
 (defun gc ()
   #+sbcl (sb-ext:gc :full t)
@@ -21,10 +22,11 @@
           (time (progn ,@body))))
 
 (defun load-test ()
-  (with-io-file (stream *test-file*)
-    (time-with-gc
-      (loop repeat (read-next-object stream)
-            do (read-next-object stream)))))
+  (with-packages
+   (with-io-file (stream *test-file*)
+     (time-with-gc
+       (loop repeat (read-next-object stream)
+             do (read-next-object stream))))))
 
 (defun identity-test (x &optional (mode :both))
   (with-packages
@@ -50,13 +52,20 @@
   (make-string (or object-size 10000)))
 
 (defmethod create-test-object ((type (eql 'simple-base-string)) &key)
-  #.(coerce "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" 'simple-base-string))
+  #.(coerce "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+            'simple-base-string))
 
 (defmethod create-test-object ((type (eql 'ascii-string)) &key)
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
 (defmethod create-test-object ((type (eql 'multibyte-string)) &key)
   "АБВГДΑΒΓΔΕΖΗΘΙΚΛαβаб广州话日本語ภาษาไทย한국어")
+
+(defmethod create-test-object ((type (eql 'hash-table)) &key)
+  (load-time-value (make-hash-table :test 'equal :size 500)))
+
+(defmethod create-test-object ((type (eql 'complex-vector)) &key)
+  (load-time-value (make-array 10 :adjustable t :fill-pointer 5)))
 
 (defun class-preallocation-test (storage)
   (loop for class in (storage-data storage)

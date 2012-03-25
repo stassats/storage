@@ -187,7 +187,6 @@
 (declaim (inline advance-output-stream))
 (defun advance-output-stream (n stream)
   (declare (optimize (safety 0))
-           (type word n)
            (type output-stream stream)
            ((integer 1 4) n))
   (let* ((sap (output-stream-buffer-position stream))
@@ -196,8 +195,8 @@
     (cond ((> new-sap (output-stream-buffer-end stream))
            (flush-buffer stream)
            (setf (output-stream-buffer-position stream)
-                 (+ (output-stream-buffer-start stream)
-                    n))
+                 (the word (+ (output-stream-buffer-start stream)
+                              n)))
            (sb-sys:int-sap (output-stream-buffer-start stream)))
           (t
            (setf (output-stream-buffer-position stream)
