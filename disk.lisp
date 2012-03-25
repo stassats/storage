@@ -343,10 +343,10 @@
   (declare (simple-string string))
   (write-n-bytes #.(type-code 'string) 1 stream)
   (write-n-bytes (length string) +sequence-length+ stream)
-  #-(and nil sb-unicode (or x86 x86-64))
+  #-(and sb-unicode (or x86 x86-64))
   (loop for char across string
         do (write-n-bytes (char-code char) +char-length+ stream))
-  #+(and nil sb-unicode (or x86 x86-64))
+  #+(and sb-unicode (or x86 x86-64))
   (write-multibyte-string-optimized string stream))
 
 (defmethod write-object ((string string) stream)

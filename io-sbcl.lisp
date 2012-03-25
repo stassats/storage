@@ -15,7 +15,7 @@
     (sb-alien:make-alien char
                          ;; alignment
                          (+ +buffer-size+
-                            (1- sb-vm:n-word-bytes))))))
+                            sb-vm:n-word-bytes)))))
 
 (defstruct (input-stream
             (:predicate nil))
@@ -324,6 +324,51 @@
                                          (sb-sys:int-sap start) left-length)
                (setf (output-stream-buffer-position stream)
                      (sb-ext:truly-the word (+ start left-length)))))
+            (t
+             (error "Strings of more than ~a are not supported yet."
+                    +buffer-size+)))))
+  string)
+
+
+(declaim (inline copy-mem-multibyte-string))
+(defun copy-mem-multibyte-string (from to length)
+  (declare (word length)
+           (optimize (safety 0)))
+  (loop for buffer-index fixnum by 3 below length
+        for string-index fixnum by 4 
+        do (setf (sb-sys:sap-ref-32 to buffer-index)
+                 (sb-sys:sap-ref-32 from string-index))))
+
+(declaim (inline write-multibyte-string-optimized))
+(defun write-multibyte-string-optimized (string stream)
+  (declare (optimize speed)
+           (simple-string string)
+           (sb-ext:muffle-conditions sb-ext:compiler-note))
+  (sb-sys:with-pinned-objects (string)
+    (let* ((length (* (length string) 3))
+           (position (output-stream-buffer-position stream))
+           (string-sap (sb-sys:vector-sap string))
+           (new-position (sb-ext:truly-the word (+ position length))))
+      (declare (type word position new-position))
+      (cond ((<= new-position (output-stream-buffer-end stream))
+             (copy-mem-multibyte-string string-sap (sb-sys:int-sap position) length)
+             (setf (output-stream-buffer-position stream)
+                   new-position))
+            ((<= length +buffer-size+)
+             (let ((left (- (output-stream-buffer-end stream) position)))
+              (multiple-value-bind (quot rem) (floor left 3)
+                (let* ((start (output-stream-buffer-start stream))
+                       (left (- left rem))
+                       (left-length (sb-ext:truly-the word (- length left))))
+                  (declare (word left left-length))
+                  (copy-mem-multibyte-string string-sap (sb-sys:int-sap position) left)
+                  (setf (output-stream-buffer-position stream)
+                        (- (output-stream-buffer-end stream) rem))
+                  (flush-buffer stream)
+                  (copy-mem-multibyte-string (sb-sys:sap+ string-sap (* quot 4))
+                                                   (sb-sys:int-sap start) left-length)
+                  (setf (output-stream-buffer-position stream)
+                        (sb-ext:truly-the word (+ start left-length)))))))
             (t
              (error "Strings of more than ~a are not supported yet."
                     +buffer-size+)))))

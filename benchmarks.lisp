@@ -55,6 +55,9 @@
 (defmethod create-test-object ((type (eql 'ascii-string)) &key)
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
+(defmethod create-test-object ((type (eql 'multibyte-string)) &key)
+  "АБВГДΑΒΓΔΕΖΗΘΙΚΛαβаб广州话日本語ภาษาไทย한국어")
+
 (defun class-preallocation-test (storage)
   (loop for class in (storage-data storage)
         for length = (length (objects-of-class class))
