@@ -11,6 +11,9 @@
       null
       storable-class
       standard-object
+      byte
+      2-byte
+      4-byte
       fixnum
       bignum
       ratio
@@ -247,11 +250,17 @@
           (write-n-bytes (ldb (byte fixnum-bits position) n)
                          +fixnum-length+ stream))))
 
-(defmethod write-object ((object integer) stream)
-  (typecase object
+(defmethod write-object ((n integer) stream)
+  (typecase n
+    ((signed-byte 8)
+     (write-n-bytes #.(type-code 'byte) 1 stream)
+     (write-n-signed-bytes n 1 stream))
+    ((signed-byte 16)
+     (write-n-bytes #.(type-code '2-byte) 1 stream)
+     (write-n-signed-bytes n 2 stream))
     (storage-fixnum
-     (write-fixnum object stream))
-    (t (write-bignum object stream))))
+     (write-fixnum n stream))
+    (t (write-bignum n stream))))
 
 (declaim (inline read-sign))
 (defun read-sign (stream)
@@ -272,6 +281,12 @@
 
 (defreader fixnum (stream)
   (read-n-signed-bytes +fixnum-length+ stream))
+
+(defreader byte (stream)
+  (read-n-signed-bytes 1 stream))
+
+(defreader 2-byte (stream)
+  (read-n-signed-bytes 2 stream))
 
 ;;; Ratio
 

@@ -70,6 +70,15 @@
 (defmethod create-test-object ((type (eql 'complex-array)) &key)
   (load-time-value (make-array '(10 10 10) :adjustable t)))
 
+(defmethod create-test-object ((type (eql 'byte)) &key)
+  158)
+
+(defmethod create-test-object ((type (eql '2-byte)) &key)
+  -4395)
+
+(defmethod create-test-object ((type (eql 'fixnum)) &key)
+  439534355)
+
 (defun class-preallocation-test (storage)
   (loop for class in (storage-data storage)
         for length = (length (objects-of-class class))
@@ -80,3 +89,5 @@
         finally
         (preallocate-objects (setf *indexes* (make-array array-length))
                              info)))
+
+
