@@ -65,7 +65,10 @@
   (load-time-value (make-hash-table :test 'equal :size 500)))
 
 (defmethod create-test-object ((type (eql 'complex-vector)) &key)
-  (load-time-value (make-array 10 :adjustable t :fill-pointer 5)))
+  (load-time-value (make-array 10 :adjustable nil :fill-pointer 5)))
+
+(defmethod create-test-object ((type (eql 'complex-array)) &key)
+  (load-time-value (make-array '(10 10 10) :adjustable t)))
 
 (defun class-preallocation-test (storage)
   (loop for class in (storage-data storage)

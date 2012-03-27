@@ -23,6 +23,7 @@
       intern-symbol
       character
       simple-vector
+      vector
       array
       hash-table
       pathname)))
@@ -70,6 +71,7 @@
 (defconstant +char-length+ 3)
 (defconstant +id-length+ 3)
 (defconstant +hash-table-length+ 3)
+(defconstant +vector-length+ 4)
 
 (defconstant +end+ 255)
 
@@ -413,14 +415,17 @@
          (write-list-of-objects list stream))
         (t
          (write-n-bytes #.(type-code 'cons) 1 stream)
-         (loop for cdr = list then (cdr cdr)
-               do
-               (cond ((consp cdr)
-                      (write-object (car cdr) stream))
-                     (t
-                      (write-n-bytes +end+ 1 stream)
-                      (write-object cdr stream)
-                      (return)))))))
+         (write-cons list stream))))
+
+(defun write-cons (cons stream)
+  (loop for cdr = cons then (cdr cdr)
+        do
+        (cond ((consp cdr)
+               (write-object (car cdr) stream))
+              (t
+               (write-n-bytes +end+ 1 stream)
+               (write-object cdr stream)
+               (return)))))
 
 (defreader cons (stream)
   (let ((first-cons (list (read-next-object stream))))
@@ -451,14 +456,63 @@
         for id = (read-n-bytes +id-length+ stream)
         collect (get-instance id)))
 
-;;; Simple-vector
+;;; vector
+
+(declaim (inline bit-test))
+(defun bit-test (byte index)
+  (declare (type (unsigned-byte 8) byte)
+           (type (integer 0 7) index))
+  (ldb-test (byte 1 index) byte))
+
+(declaim (inline read-fill-pointer))
+(defun read-fill-pointer (byte stream)
+  (declare (type (unsigned-byte 8) byte))
+  (and (bit-test byte 0)
+       (read-n-bytes +vector-length+ stream)))
 
 (defmethod write-object ((vector vector) stream)
   (typecase vector
     (simple-vector
      (write-simple-vector vector stream))
     (t
-     (call-next-method))))
+     (write-vector vector stream))))
+
+(defun write-vector (vector stream)
+  (write-n-bytes #.(type-code 'vector) 1 stream)
+  (let ((byte 0)
+        (fp (array-has-fill-pointer-p vector))
+        (type (array-element-type vector)))
+    (declare (type (unsigned-byte 8) byte))
+    (when fp
+      (setf byte 1))
+    (when (adjustable-array-p vector)
+      (setf (ldb (byte 1 1) byte) 1))
+    (when (eq type t)
+      (setf (ldb (byte 1 2) byte) 1))
+    (write-n-bytes byte 1 stream)
+    (when fp
+      (write-n-bytes (fill-pointer vector) +vector-length+ stream))
+    (unless (eq type t)
+      (write-object (array-element-type vector) stream))
+    (write-n-bytes (length vector) +vector-length+ stream)
+    (loop for i below (length vector)
+          do (write-object (aref vector i) stream))))
+
+(defreader vector (stream)
+  (let* ((byte (read-n-bytes 1 stream))
+         (fill-pointer (read-fill-pointer byte stream))
+         (length (read-n-bytes +vector-length+ stream))
+         (vector (make-array length
+                             :fill-pointer fill-pointer
+                             :element-type (if (bit-test byte 2)
+                                               t
+                                               (read-next-object stream))
+                             :adjustable (bit-test byte 1))))
+    (loop for i below length
+          do (setf (aref vector i) (read-next-object stream)))
+    vector))
+
+;;; Simple-vector
 
 (defun write-simple-vector (vector stream)
   (declare (simple-vector vector))
@@ -478,45 +532,26 @@
 (defmethod write-object ((array array) stream)
   (write-n-bytes #.(type-code 'array) 1 stream)
   (let ((byte 0)
-        (fp (adjustable-array-p array))
         (type (array-element-type array)))
     (declare (type (unsigned-byte 8) byte))
-    (when fp
-      (setf byte 1))
     (when (adjustable-array-p array)
-      (setf (ldb (byte 1 1) byte) 1))
+      (setf (ldb (byte 1 0) byte) 1))
     (when (eq type t)
-      (setf (ldb (byte 1 2) byte) 1))
+      (setf (ldb (byte 1 1) byte) 1))
     (write-n-bytes byte 1 stream)
-    (when fp
-      (write-n-bytes (fill-pointer array) +sequence-length+ stream))
     (unless (eq type t)
       (write-object (array-element-type array) stream))
-    (write-object (array-dimensions array) stream)
+    (write-cons (array-dimensions array) stream)
     (loop for i below (array-total-size array)
           do (write-object (row-major-aref array i) stream))))
 
-(declaim (inline bit-test))
-(defun bit-test (byte index)
-  (declare (type (unsigned-byte 8) byte)
-           (type (integer 0 7) index))
-  (ldb-test (byte 1 index) byte))
-
-(declaim (inline read-array-fill-pointer))
-(defun read-array-fill-pointer (byte stream)
-  (declare (type (unsigned-byte 8) byte))
-  (and (bit-test byte 0)
-       (read-n-bytes +sequence-length+ stream)))
-
 (defreader array (stream)
   (let* ((byte (read-n-bytes 1 stream))
-         (fill-pointer (read-array-fill-pointer byte stream))
-         (array (make-array (read-next-object stream)
-                            :fill-pointer fill-pointer
-                            :element-type (if (bit-test byte 2)
+         (array (make-array (cons-reader stream)
+                            :element-type (if (bit-test byte 1)
                                               t
                                               (read-next-object stream))
-                            :adjustable (bit-test byte 1))))
+                            :adjustable (bit-test byte 0))))
     (loop for i below (array-total-size array)
           do (setf (row-major-aref array i) (read-next-object stream)))
     array))
