@@ -13,6 +13,7 @@
       standard-object
       fixnum
       bignum
+      fixnum-ratio
       ratio
       double-float
       single-float
@@ -223,20 +224,19 @@
 
 ;;; Integer
 
+(declaim (inline write-fixnum))
+(defun write-fixnum (n stream)
+  (declare (storage-fixnum n))
+  (write-n-signed-bytes n +fixnum-length+ stream))
+
 (declaim (inline sign))
 (defun sign (n)
   (if (minusp n)
       1
       0))
 
-(defun write-fixnum (n stream)
-  (declare (storage-fixnum n))
-  (write-n-bytes #.(type-code 'fixnum) 1 stream)
-  (write-n-signed-bytes n +fixnum-length+ stream))
-
 (defun write-bignum (n stream)
   (declare (type (and integer (not storage-fixnum)) n))
-  (write-n-bytes #.(type-code 'bignum) 1 stream)
   (write-n-bytes (sign n) 1 stream)
   (let* ((fixnum-bits (* +fixnum-length+ 8))
          (n (abs n))
@@ -250,8 +250,11 @@
 (defmethod write-object ((object integer) stream)
   (typecase object
     (storage-fixnum
+     (write-n-bytes #.(type-code 'fixnum) 1 stream)
      (write-fixnum object stream))
-    (t (write-bignum object stream))))
+    (t
+     (write-n-bytes #.(type-code 'bignum) 1 stream)
+     (write-bignum object stream))))
 
 (declaim (inline read-sign))
 (defun read-sign (stream)
@@ -275,10 +278,22 @@
 
 ;;; Ratio
 
-(defmethod write-object ((object ratio) stream)
-  (write-n-bytes #.(type-code 'ratio) 1 stream)
-  (write-object (numerator object) stream)
-  (write-object (denominator object) stream))
+(defmethod write-object ((n ratio) stream)
+  (let ((numerator (numerator n))
+        (denominator (denominator n)))
+    (cond ((and (typep numerator 'storage-fixnum)
+                (typep denominator 'storage-fixnum))
+           (write-n-bytes #.(type-code 'fixnum-ratio) 1 stream)
+           (write-fixnum numerator stream)
+           (write-fixnum denominator stream))
+          (t
+           (write-n-bytes #.(type-code 'ratio) 1 stream)
+           (write-object numerator stream)
+           (write-object denominator stream)))))
+
+(defreader fixnum-ratio (stream)
+  (/ (the storage-fixnum (fixnum-reader stream))
+     (the storage-fixnum (fixnum-reader stream))))
 
 (defreader ratio (stream)
   (/ (read-next-object stream)

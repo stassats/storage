@@ -70,6 +70,12 @@
 (defmethod create-test-object ((type (eql 'complex-array)) &key)
   (load-time-value (make-array '(10 10 10) :adjustable t)))
 
+(defmethod create-test-object ((type (eql 'fixnum-ratio)) &key)
+  1/3)
+
+(defmethod create-test-object ((type (eql 'bignum-ratio)) &key)
+  2333333331232/2333333331231)
+
 (defun class-preallocation-test (storage)
   (loop for class in (storage-data storage)
         for length = (length (objects-of-class class))
