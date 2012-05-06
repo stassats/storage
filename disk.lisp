@@ -10,7 +10,6 @@
       string
       null
       storable-class
-      standard-object
       fixnum
       bignum
       fixnum-ratio
@@ -648,15 +647,11 @@
   (get-instance (read-n-bytes +id-length+ stream)))
 
 ;;; standard-object
-;;;
-;;; Can't use write-object method, because it would conflict with
-;;; writing a pointer to a standard object
+
 (defun write-standard-object (object stream)
-  (write-n-bytes #.(type-code 'standard-object) 1 stream)
   (let* ((class (class-of object))
          (slots (slot-locations-and-initforms class)))
     (declare (simple-vector slots))
-    (write-n-bytes (id object) +id-length+ stream)
     (loop for id below (length slots)
           for (location . initform) = (aref slots id)
           for value = (standard-instance-access object location)
@@ -666,18 +661,13 @@
           (write-object value stream))
     (write-n-bytes +end+ 1 stream)))
 
-(defreader standard-object (stream)
-  (let* ((instance (get-instance
-                    (read-n-bytes +id-length+ stream)))
-         (class (class-of instance))
-         (slots (slot-locations-and-initforms-read class)))
-    (declare (simple-vector slots))
-    (loop for slot-id = (read-n-bytes 1 stream)
-          until (= slot-id +end+)
-          do (setf (standard-instance-access instance
-                                             (car (aref slots slot-id)))
-                   (read-next-object stream)))
-    instance))
+(defun standard-object-reader (instance slots stream)
+  (declare (simple-vector slots))
+  (loop for slot-id = (read-n-bytes 1 stream)
+        until (= slot-id +end+)
+        do (setf (standard-instance-access instance
+                                           (car (aref slots slot-id)))
+                 (read-next-object stream))))
 
 ;;;
 
@@ -737,13 +727,24 @@
         collect (cons class length) into info
         sum length into array-length
         finally
-        (preallocate-objects (setf *indexes* (make-array array-length)) info)))
+        (let ((array (make-array array-length)))
+          (preallocate-objects array info)
+          (return (values array info)))))
 
 (defun read-file (file)
   (with-io-file (stream file)
-    (prepare-classes stream)
-    (loop until (stream-end-of-file-p stream)
-          do (read-next-object stream))))
+    (multiple-value-bind (array info) (prepare-classes stream)
+      (declare (simple-vector array))
+      (setf *indexes* array)
+      (loop with i = 0
+            for (class . n) of-type (t . fixnum) in info
+            for slots = (slot-locations-and-initforms-read class)
+            do
+            (loop repeat n
+                  for instance = (aref array i)
+                  do
+                  (incf i)
+                  (standard-object-reader instance slots stream))))))
 
 (defun load-data (storage &optional file)
   (let ((*storage* storage)
