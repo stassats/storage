@@ -49,6 +49,13 @@
       (funcall function
                class (objects-of-class class)))))
 
+(declaim (inline map-all-data))
+(defun map-all-data (function)
+  (dolist (class (storage-data *storage*))
+    (let ((objects (objects-of-class class)))
+      (when objects
+        (funcall function class objects)))))
+
 (defun map-type-class (superclass function)
   (dolist (class (storage-data *storage*))
     (when (subtypep class superclass)
@@ -114,7 +121,7 @@
 ;;;
 
 (defun interlink-all-objects-first-time ()
-  (map-data
+  (map-all-data
    (lambda (class objects)
      (let ((relations (class-relations class)))
        (when relations

@@ -100,12 +100,12 @@
 (defun assign-ids ()
   (let ((last-id 0))
     (declare (fixnum last-id))
-    (map-data
+    (map-all-data
      (lambda (class objects)
-       (declare (ignore class))
-       (dolist (object objects)
-         (setf (id object) last-id)
-         (incf last-id))))))
+       (let ((slot (slot-definition-location (find-slot 'id class))))
+         (dolist (object objects)
+           (setf (standard-instance-access object slot) last-id)
+           (incf last-id)))))))
 
 (defun number-of-non-empty-classes (storage)
   (count-if #'objects-of-class
@@ -114,19 +114,20 @@
 (defun write-classes-info (stream)
   (write-n-bytes (number-of-non-empty-classes *storage*)
                  +sequence-length+ stream)
-  (map-data (lambda (class objects)
-              (when objects
-                (write-object class stream)
-                (write-n-bytes (length objects)
-                               +id-length+ stream)))))
+  (map-all-data
+   (lambda (class objects)
+     (write-object class stream)
+     (write-n-bytes (length objects)
+                    +id-length+ stream))))
 
 (defun dump-data (stream)
   (write-classes-info stream)
   (assign-ids)
-  (map-data (lambda (class objects)
-              (declare (ignore class))
-              (dolist (object objects)
-                (write-standard-object object stream)))))
+  (map-all-data
+   (lambda (class objects)
+     (let ((slots (slot-locations-and-initforms class)))
+       (dolist (object objects)
+         (write-standard-object object slots stream))))))
 
 (declaim (inline read-next-object))
 (defun read-next-object (stream)
@@ -648,18 +649,16 @@
 
 ;;; standard-object
 
-(defun write-standard-object (object stream)
-  (let* ((class (class-of object))
-         (slots (slot-locations-and-initforms class)))
-    (declare (simple-vector slots))
-    (loop for id below (length slots)
-          for (location . initform) = (aref slots id)
-          for value = (standard-instance-access object location)
-          unless (eql value initform)
-          do
-          (write-n-bytes id 1 stream)
-          (write-object value stream))
-    (write-n-bytes +end+ 1 stream)))
+(defun write-standard-object (object slots stream)
+  (declare (simple-vector slots))
+  (loop for id below (length slots)
+        for (location . initform) = (aref slots id)
+        for value = (standard-instance-access object location)
+        unless (eql value initform)
+        do
+        (write-n-bytes id 1 stream)
+        (write-object value stream))
+  (write-n-bytes +end+ 1 stream))
 
 (defun standard-object-reader (instance slots stream)
   (declare (simple-vector slots))
