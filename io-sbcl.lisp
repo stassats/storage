@@ -216,7 +216,7 @@
 (declaim (inline copy-mem))
 (defun copy-mem (from to length)
   (declare (word length))
-  (loop for i fixnum by sb-vm:n-word-bytes to length
+  (loop for i fixnum by sb-vm:n-word-bytes below length
         do (setf (sb-sys:sap-ref-word to i)
                  (sb-sys:sap-ref-word from i))))
 
