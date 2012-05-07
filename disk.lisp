@@ -370,7 +370,7 @@
   (etypecase string
     ((not simple-string)
      (call-next-method))
-    #+sb-unicode
+    #+(and sb-unicode (or x86 x86-64))
     (simple-base-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
      (write-n-bytes (length string) +sequence-length+ stream)
@@ -397,9 +397,12 @@
 (defreader string (stream)
   (let* ((length (read-n-bytes +sequence-length+ stream))
          (string (make-string length :element-type 'character)))
+    #-(and sb-unicode (or x86 x86-64))
     (loop for i below length
           do (setf (schar string i)
                    (code-char (read-n-bytes +char-length+ stream))))
+    #+(and sb-unicode (or x86 x86-64))
+    (read-multibyte-string-optimized length string stream)
     string))
 
 ;;; Pathname

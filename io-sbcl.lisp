@@ -216,47 +216,6 @@
         value))
 ;;;
 
-(declaim (inline copy-mem))
-(defun copy-mem (from to length)
-  (declare (word length))
-  (loop for i fixnum by sb-vm:n-word-bytes below length
-        do (setf (sb-sys:sap-ref-word to i)
-                 (sb-sys:sap-ref-word from i))))
-
-(declaim (inline read-ascii-string-optimized))
-(defun read-ascii-string-optimized (length string stream)
-  (declare (type word length)
-           (optimize speed)
-           (sb-ext:muffle-conditions sb-ext:compiler-note))
-  (sb-sys:with-pinned-objects (string)
-    (let* ((sap (input-stream-buffer-position stream))
-           (string-sap (sb-sys:vector-sap string))
-           (new-sap (sb-ext:truly-the word (+ sap length))))
-      (declare (type word sap new-sap))
-      (cond ((<= new-sap (input-stream-buffer-end stream))
-             (copy-mem (sb-sys:int-sap sap) string-sap length)
-             (setf (input-stream-buffer-position stream)
-                   new-sap))
-            ((<= length +buffer-size+)
-             (let* ((start (input-stream-buffer-start stream))
-                    (left (- (input-stream-buffer-end stream) sap))
-                    (left-length (sb-ext:truly-the word (- length left))))
-               (declare (word left left-length))
-               (when (> left-length (input-stream-left stream))
-                 (error "End of file ~a" stream))
-               (copy-mem (sb-sys:int-sap sap) string-sap left)
-               (fill-buffer stream 0)
-               (copy-mem (sb-sys:int-sap start)
-                         (sb-sys:sap+ string-sap left) left-length)
-               (setf (input-stream-buffer-position stream)
-                     (sb-ext:truly-the word (+ start left-length)))))
-            (t
-             (error "Strings of more than ~a are not supported yet."
-                    +buffer-size+)))))
-  string)
-
-;;;
-
 (defmacro with-io-file ((stream file
                          &key append (direction :input))
                         &body body)
