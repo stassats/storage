@@ -78,7 +78,7 @@
   (mask-field (byte 24 0) (sb-sys:sap-ref-32 sap offset)))
 
 (declaim (ftype (function ((integer 1 4) t &optional word)
-                          (unsigned-byte 32))
+                          (values (unsigned-byte 32) &optional))
                 n-sap-ref))
 
 (declaim (inline n-sap-ref))

@@ -139,26 +139,29 @@
                    (setf string-sap
                          (sb-sys:sap+ string-sap
                                       (* quot memory-char-size)))
-                   (cond ((> rem 0)
-                          (let ((left-char
-                                  (n-sap-ref rem
-                                             (sb-sys:int-sap (- end rem)) 0)))
-                            (decf left-length 3)
-                            (fill-buffer stream 0)
-                            (setf (sb-sys:sap-ref-32 string-sap 0)
-                                  (logior left-char
-                                          (ash
-                                           (the (unsigned-byte 24)
-                                                (n-sap-ref left-bytes
-                                                           (sb-sys:int-sap start)))
-                                           (* rem 8))))
-                            (setf start
-                                  (sb-ext:truly-the word (+ start left-bytes)))
-                            (setf string-sap
-                                  (sb-sys:sap+ string-sap
-                                               memory-char-size))))
-                         (t
-                          (fill-buffer stream 0)))
+                   (cond
+                     ((> rem 0)
+                      (let ((left-char
+                              (sb-ext:truly-the
+                               (unsigned-byte 24)
+                               (n-sap-ref rem
+                                          (sb-sys:int-sap (- end rem)) 0))))
+                        (decf left-length 3)
+                        (fill-buffer stream 0)
+                        (setf (sb-sys:sap-ref-32 string-sap 0)
+                              (logior left-char
+                                      (ash
+                                       (the (unsigned-byte 24)
+                                            (n-sap-ref left-bytes
+                                                       (sb-sys:int-sap start)))
+                                       (* rem 8))))
+                        (setf start
+                              (sb-ext:truly-the word (+ start left-bytes)))
+                        (setf string-sap
+                              (sb-sys:sap+ string-sap
+                                           memory-char-size))))
+                     (t
+                      (fill-buffer stream 0)))
                    (funcall copier (sb-sys:int-sap start) string-sap left-length)
 
                    (setf (input-stream-buffer-position stream)
