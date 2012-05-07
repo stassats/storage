@@ -22,7 +22,7 @@
   (declare (buffer-length length)
            (optimize (safety 0)))
   (loop for buffer-index fixnum by 3 below length
-        for string-index fixnum by 4 
+        for string-index fixnum by 4
         do (setf (sb-sys:sap-ref-32 to buffer-index)
                  (sb-sys:sap-ref-32 from string-index))))
 
@@ -31,21 +31,21 @@
   (declare (buffer-length length)
            (optimize (safety 0)))
   (loop for buffer-index fixnum by 3 below length
-        for string-index fixnum by 4 
+        for string-index fixnum by 4
         do (setf (sb-sys:sap-ref-32 to string-index)
                  (sap-ref-24 from buffer-index))))
 
 (declaim (inline write-optimized-string-generic))
 (defun write-optimized-string-generic (string copier stream
-                                       &key (length-multiplier 1)
-                                            (left-length-multiplier 1))
+                                       &key (disk-char-size 1)
+                                            (memory-char-size 1))
   (declare (optimize speed)
            (sb-ext:muffle-conditions sb-ext:compiler-note)
            (simple-string string)
-           (type (integer 1 4) length-multiplier left-length-multiplier)
+           (type (integer 1 4) disk-char-size memory-char-size)
            (function copier))
   (sb-sys:with-pinned-objects (string)
-    (let* ((length (* (length string) length-multiplier))
+    (let* ((length (* (length string) disk-char-size))
            (position (output-stream-buffer-position stream))
            (string-sap (sb-sys:vector-sap string))
            (new-position (sb-ext:truly-the word (+ position length))))
@@ -59,7 +59,7 @@
                           word
                           (- (output-stream-buffer-end stream) position))))
                (declare (buffer-length left))
-               (multiple-value-bind (quot rem) (floor left length-multiplier)
+               (multiple-value-bind (quot rem) (floor left disk-char-size)
                  (let* ((start (output-stream-buffer-start stream))
                         (left (- left rem))
                         (left-length (- length left)))
@@ -72,7 +72,7 @@
                    (flush-buffer stream)
                    (funcall copier
                             (sb-sys:sap+ string-sap
-                                         (* quot left-length-multiplier))
+                                         (* quot memory-char-size))
                             (sb-sys:int-sap start) left-length)
                    (setf (output-stream-buffer-position stream)
                          (sb-ext:truly-the word (+ start left-length)))))))
@@ -92,27 +92,27 @@
 (defun write-ascii-non-base-string-optimized (string stream)
   (write-optimized-string-generic string #'copy-mem-non-base-string
                                   stream
-                                  :left-length-multiplier 4))
+                                  :memory-char-size 4))
 
 (declaim (inline write-multibyte-string-optimized))
 (defun write-multibyte-string-optimized (string stream)
   (write-optimized-string-generic string #'copy-multibyte-string-to-buffer stream
-                                  :length-multiplier 3
-                                  :left-length-multiplier 4))
+                                  :disk-char-size 3
+                                  :memory-char-size 4))
 
 ;;; reading
 
 (declaim (inline read-optimized-string-generic))
 (defun read-optimized-string-generic (length string copier stream
-                                      &key (length-multiplier 1)
-                                           (left-length-multiplier 1))
-  (declare (type word length)
-           (type (integer 1 4) length-multiplier left-length-multiplier)
-           (optimize (speed 0))
+                                      &key (disk-char-size 1)
+                                           (memory-char-size 1))
+  (declare (type sb-int:index length)
+           (type (integer 1 4) disk-char-size memory-char-size)
+           (optimize speed)
            (sb-ext:muffle-conditions sb-ext:compiler-note))
   (sb-sys:with-pinned-objects (string)
     (let* ((position (input-stream-buffer-position stream))
-           (length (* length length-multiplier))
+           (length (* length disk-char-size))
            (string-sap (sb-sys:vector-sap string))
            (new-position (sb-ext:truly-the word (+ position length))))
       (declare (type word position new-position))
@@ -125,20 +125,20 @@
                           word
                           (- (input-stream-buffer-end stream) position))))
                (declare (buffer-length left))
-               (multiple-value-bind (quot rem) (floor left length-multiplier)
+               (multiple-value-bind (quot rem) (floor left disk-char-size)
                  (let* ((start (input-stream-buffer-start stream))
                         (end (input-stream-buffer-end stream))
                         (left (- left rem))
-                        (left-bytes (- length-multiplier rem))
+                        (left-bytes (- disk-char-size rem))
                         (left-length (- length left)))
                    (declare (word left left-length)
-                            (type (integer 0 4) left-bytes))
+                            (type (integer 0 3) left-bytes))
                    (when (> left-length (input-stream-left stream))
                      (error "End of file ~a" stream))
                    (funcall copier (sb-sys:int-sap position) string-sap left)
                    (setf string-sap
                          (sb-sys:sap+ string-sap
-                                      (* quot left-length-multiplier)))
+                                      (* quot memory-char-size)))
                    (cond ((> rem 0)
                           (let ((left-char
                                   (n-sap-ref rem
@@ -147,16 +147,20 @@
                             (fill-buffer stream 0)
                             (setf (sb-sys:sap-ref-32 string-sap 0)
                                   (logior left-char
-                                          (ash (n-sap-ref left-bytes (sb-sys:int-sap start))
-                                               (* rem 8))))
-                            (incf start left-bytes)
+                                          (ash
+                                           (the (unsigned-byte 24)
+                                                (n-sap-ref left-bytes
+                                                           (sb-sys:int-sap start)))
+                                           (* rem 8))))
+                            (setf start
+                                  (sb-ext:truly-the word (+ start left-bytes)))
                             (setf string-sap
                                   (sb-sys:sap+ string-sap
-                                               left-length-multiplier))))
+                                               memory-char-size))))
                          (t
                           (fill-buffer stream 0)))
                    (funcall copier (sb-sys:int-sap start) string-sap left-length)
-                   
+
                    (setf (input-stream-buffer-position stream)
                          (sb-ext:truly-the word (+ start left-length)))))))
             (t
@@ -172,5 +176,5 @@
   (read-optimized-string-generic length string
                                  #'copy-multibyte-string-to-memory
                                  stream
-                                 :length-multiplier 3
-                                 :left-length-multiplier 4))
+                                 :disk-char-size 3
+                                 :memory-char-size 4))

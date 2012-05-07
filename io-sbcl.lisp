@@ -77,6 +77,10 @@
            (fixnum offset))
   (mask-field (byte 24 0) (sb-sys:sap-ref-32 sap offset)))
 
+(declaim (ftype (function ((integer 1 4) t &optional word)
+                          (unsigned-byte 32))
+                n-sap-ref))
+
 (declaim (inline n-sap-ref))
 (defun n-sap-ref (n sap &optional (offset 0))
   (funcall (ecase n
