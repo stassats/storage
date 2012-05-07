@@ -8,6 +8,8 @@
   :components ((:file "packages")
                #+(and sbcl (or x86 x86-64))
                (:file "io-sbcl")
+               #+(and sbcl (or x86 x86-64))
+               (:file "io-sbcl-strings")
                #-(and sbcl (or x86 x86-64))
                (:file "io-generic")
                (:file "mop")
