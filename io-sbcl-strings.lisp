@@ -11,8 +11,10 @@
          (to (sb-sys:sap-int to))
          (end (+ to length)))
     (declare (word from to end))
-    (loop for string-index of-type word = from then (+ string-index memory-char-size)
-          for buffer-index of-type word = to then (+ buffer-index buffer-char-size)
+    (loop for string-index of-type word = from
+          then (+ string-index memory-char-size)
+          for buffer-index of-type word = to
+          then (+ buffer-index buffer-char-size)
           while (< buffer-index end)
           do
           (setf (sb-sys:sap-ref-word (sb-sys:int-sap buffer-index) 0)
@@ -36,7 +38,9 @@
 (defun copy-multibyte-string-to-buffer (from to length)
   (declare (sb-sys:system-area-pointer from to)
            (optimize speed (safety 0)))
-  (copy-mem-generic from to length :memory-char-size 4 :buffer-char-size 3))
+  (copy-mem-generic from to length
+                    :memory-char-size 4
+                    :buffer-char-size 3))
 
 (declaim (inline copy-multibyte-string-to-memory))
 (defun copy-multibyte-string-to-memory (from to length)
@@ -93,7 +97,7 @@
                     +buffer-size+)))))
   string)
 
-(declaim (inline write-ascii-string-optimized))
+(declaim (notinline write-ascii-string-optimized))
 (defun write-ascii-string-optimized (string stream)
   (declare (optimize speed)
            (simple-string string))
@@ -108,7 +112,9 @@
 
 (declaim (inline write-multibyte-string-optimized))
 (defun write-multibyte-string-optimized (string stream)
-  (write-optimized-string-generic string #'copy-multibyte-string-to-buffer stream
+  (write-optimized-string-generic string
+                                  #'copy-multibyte-string-to-buffer
+                                  stream
                                   :disk-char-size 3
                                   :memory-char-size 4))
 
@@ -187,6 +193,7 @@
 (defun read-ascii-string-optimized (length string stream)
   (read-optimized-string-generic length string #'copy-mem stream))
 
+(declaim (inline read-multibyte-string-optimized))
 (defun read-multibyte-string-optimized (length string stream)
   (read-optimized-string-generic length string
                                  #'copy-multibyte-string-to-memory
