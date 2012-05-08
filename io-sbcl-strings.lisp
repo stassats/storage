@@ -1,30 +1,42 @@
 (in-package #:storage)
 
+(declaim (inline copy-mem-generic))
+(defun copy-mem-generic (from to length &key (memory-char-size 1)
+                                             (buffer-char-size 1))
+  (declare (buffer-length length)
+           (type (integer 1 8) memory-char-size buffer-char-size)
+           (sb-sys:system-area-pointer from to)
+           (optimize speed (safety 0)))
+  (let* ((from (sb-sys:sap-int from))
+         (to (sb-sys:sap-int to))
+         (end (+ to length)))
+    (declare (word from to end))
+    (loop for string-index of-type word = from then (+ string-index memory-char-size)
+          for buffer-index of-type word = to then (+ buffer-index buffer-char-size)
+          while (< buffer-index end)
+          do
+          (setf (sb-sys:sap-ref-word (sb-sys:int-sap buffer-index) 0)
+                (sb-sys:sap-ref-word (sb-sys:int-sap string-index) 0)))))
+
 (declaim (inline copy-mem))
 (defun copy-mem (from to length)
-  (declare (buffer-length length)
-           (optimize speed))
-  (loop for i fixnum by sb-vm:n-word-bytes below length
-        do (setf (sb-sys:sap-ref-word to i)
-                 (sb-sys:sap-ref-word from i))))
+  (declare (sb-sys:system-area-pointer from to)
+           (optimize speed (safety 0)))
+  (copy-mem-generic from to length
+                    :memory-char-size sb-vm:n-word-bytes
+                    :buffer-char-size sb-vm:n-word-bytes))
 
 (declaim (inline copy-mem-non-base-string))
 (defun copy-mem-non-base-string (from to length)
-  (declare (buffer-length length)
-           (optimize (safety 0)))
-  (loop for string-index fixnum by 4
-        for i fixnum below length
-        do (setf (sb-sys:sap-ref-8 to i)
-                 (sb-sys:sap-ref-8 from string-index))))
+  (declare (sb-sys:system-area-pointer from to)
+           (optimize speed (safety 0)))
+  (copy-mem-generic from to length :memory-char-size 4))
 
 (declaim (inline copy-multibyte-string-to-buffer))
 (defun copy-multibyte-string-to-buffer (from to length)
-  (declare (buffer-length length)
-           (optimize (safety 0)))
-  (loop for buffer-index fixnum by 3 below length
-        for string-index fixnum by 4
-        do (setf (sb-sys:sap-ref-32 to buffer-index)
-                 (sb-sys:sap-ref-32 from string-index))))
+  (declare (sb-sys:system-area-pointer from to)
+           (optimize speed (safety 0)))
+  (copy-mem-generic from to length :memory-char-size 4 :buffer-char-size 3))
 
 (declaim (inline copy-multibyte-string-to-memory))
 (defun copy-multibyte-string-to-memory (from to length)
