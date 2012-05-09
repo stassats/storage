@@ -54,10 +54,7 @@
            (fixnum offset))
   (mask-field (byte 24 0) (mem-ref-32 address offset)))
 
-(declaim (ftype (function ((integer 1 4) word &optional fixnum)
-                          (values (unsigned-byte 32) &optional))
-                n-mem-ref)
-         (inline n-mem-ref))
+(declaim (inline n-mem-ref))
 (defun n-mem-ref (n address &optional (offset 0))
   (funcall (ecase n
              (1 #'mem-ref-8)
@@ -67,6 +64,7 @@
            address
            offset))
 
+(declaim (inline n-signed-mem-ref (setf n-signed-mem-ref)))
 (defun n-signed-mem-ref (n address &optional (offset 0))
   (funcall (ecase n
              (1 #'signed-mem-ref-8)
