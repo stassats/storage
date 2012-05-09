@@ -12,6 +12,84 @@
 
 (deftype word () 'sb-vm:word)
 
+;;; sap wrappers
+
+(defmacro define-sap-ref-wrapper (bits &key name prefix)
+  (let ((name (alexandria:format-symbol t "~@[~a-~]~a-~a"
+                                        prefix 'mem-ref (or name bits)))
+        (sb-sys (alexandria:format-symbol 'sb-sys
+                                          "~@[~a-~]~a-~a"
+                                          prefix 'sap-ref (or name bits))))
+    `(progn
+       (declaim (inline ,name))
+       (defun ,name (address &optional (offset 0))
+         (declare (type word address)
+                  (fixnum offset)
+                  (optimize speed)
+                  (sb-ext:muffle-conditions sb-ext:compiler-note))
+         (,sb-sys (sb-sys:int-sap address) offset))
+
+       (declaim (inline (setf ,name)))
+       (defun (setf ,name) (value address &optional (offset 0))
+         (declare (type (unsigned-byte ,bits) value)
+                  (type word address)
+                  (fixnum offset)
+                  (optimize speed)
+                  (sb-ext:muffle-conditions sb-ext:compiler-note))
+         (setf (,sb-sys (sb-sys:int-sap address) offset) value)))))
+
+(define-sap-ref-wrapper 8)
+(define-sap-ref-wrapper 16)
+(define-sap-ref-wrapper 32)
+(define-sap-ref-wrapper #.sb-vm:n-word-bits :name word)
+
+(define-sap-ref-wrapper 8 :prefix signed)
+(define-sap-ref-wrapper 16 :prefix signed)
+(define-sap-ref-wrapper 32 :prefix signed)
+(define-sap-ref-wrapper #.sb-vm:n-word-bits :name word :prefix signed)
+
+(declaim (inline mem-ref-24))
+(defun mem-ref-24 (address offset)
+  (declare (optimize speed (safety 0))
+           (fixnum offset))
+  (mask-field (byte 24 0) (mem-ref-32 address offset)))
+
+(declaim (ftype (function ((integer 1 4) word &optional fixnum)
+                          (values (unsigned-byte 32) &optional))
+                n-mem-ref)
+         (inline n-mem-ref))
+(defun n-mem-ref (n address &optional (offset 0))
+  (funcall (ecase n
+             (1 #'mem-ref-8)
+             (2 #'mem-ref-16)
+             (3 #'mem-ref-24)
+             (4 #'mem-ref-32))
+           address
+           offset))
+
+(defun n-signed-mem-ref (n address &optional (offset 0))
+  (funcall (ecase n
+             (1 #'signed-mem-ref-8)
+             (2 #'signed-mem-ref-16)
+             (4 #'signed-mem-ref-32))
+           address
+           offset))
+
+(defun (setf n-signed-mem-ref) (value n address &optional (offset 0))
+  (funcall (ecase n
+             (1 #'(setf signed-mem-ref-8))
+             (2 #'(setf signed-mem-ref-16))
+             (4 #'(setf signed-mem-ref-32)))
+           value
+           address
+           offset))
+
+(declaim (inline vector-address))
+(defun vector-address (vector)
+  (sb-sys:sap-int (sb-sys:vector-sap vector)))
+
+;;;
+
 (defun allocate-buffer ()
   (sb-sys:sap-int
    (sb-alien:alien-sap
@@ -71,26 +149,6 @@
            (input-stream-buffer-end stream))
        (zerop (input-stream-left stream))))
 
-(declaim (inline sap-ref-24))
-(defun sap-ref-24 (sap offset)
-  (declare (optimize speed (safety 0))
-           (fixnum offset))
-  (mask-field (byte 24 0) (sb-sys:sap-ref-32 sap offset)))
-
-(declaim (ftype (function ((integer 1 4) t &optional word)
-                          (values (unsigned-byte 32) &optional))
-                n-sap-ref))
-
-(declaim (inline n-sap-ref))
-(defun n-sap-ref (n sap &optional (offset 0))
-  (funcall (ecase n
-             (1 #'sb-sys:sap-ref-8)
-             (2 #'sb-sys:sap-ref-16)
-             (3 #'sap-ref-24)
-             (4 #'sb-sys:sap-ref-32))
-           sap
-           offset))
-
 (declaim (inline unix-read))
 (defun unix-read (fd buf len)
   (declare (type word fd len))
@@ -127,10 +185,9 @@
              (input-stream-left stream))
       (error "End of file ~a" stream))
     (unless (zerop left-n-bytes)
-      (setf (sb-sys:sap-ref-word
-             (sb-sys:int-sap (input-stream-buffer-start stream)) 0)
-            (n-sap-ref left-n-bytes
-                       (sb-sys:int-sap (input-stream-buffer-position stream)))))
+      (setf (mem-ref-word (input-stream-buffer-start stream))
+            (n-mem-ref left-n-bytes
+                       (input-stream-buffer-position stream))))
     (fill-buffer stream left-n-bytes))
   (let ((start (input-stream-buffer-start stream)))
     (setf (input-stream-buffer-position stream)
@@ -139,50 +196,37 @@
 
 (declaim (inline advance-input-stream))
 (defun advance-input-stream (n stream)
-  (declare (type (and (integer 1) word) n)
+  (declare (type (integer 1 4) n)
            (type input-stream stream))
   (let* ((sap (input-stream-buffer-position stream))
          (new-sap (sb-ext:truly-the word (+ sap n))))
     (declare (word sap new-sap))
     (cond ((> new-sap (input-stream-buffer-end stream))
            (refill-buffer n stream)
-           (sb-sys:int-sap (input-stream-buffer-start stream)))
+           (input-stream-buffer-start stream))
           (t
            (setf (input-stream-buffer-position stream)
                  new-sap)
-           (sb-sys:int-sap sap)))))
+           sap))))
 
 (declaim (inline read-n-bytes))
 (defun read-n-bytes (n stream)
   (declare (type (integer 1 4) n))
-  (n-sap-ref n (advance-input-stream n stream)))
+  (n-mem-ref n (advance-input-stream n stream)))
 
 (declaim (inline read-n-signed-bytes))
 (defun read-n-signed-bytes (n stream)
   (declare (optimize speed)
            (sb-ext:muffle-conditions sb-ext:compiler-note)
            (type (integer 1 4) n))
-  (funcall (ecase n
-             (1 #'sb-sys:signed-sap-ref-8)
-             (2 #'sb-sys:signed-sap-ref-16)
-             ;; (3 )
-             (4 #'sb-sys:signed-sap-ref-32))
-           (advance-input-stream n stream)
-           0))
+  (n-signed-mem-ref n (advance-input-stream n stream)))
 
 (declaim (inline write-n-signed-bytes))
 (defun write-n-signed-bytes (value n stream)
   (declare (optimize speed)
            (sb-ext:muffle-conditions sb-ext:compiler-note)
            (fixnum n))
-  (ecase n
-    (1 (setf (sb-sys:signed-sap-ref-8 (advance-output-stream n stream) 0)
-             value))
-    (2 (setf (sb-sys:signed-sap-ref-16 (advance-output-stream n stream) 0)
-             value))
-    ;; (3 )
-    (4 (setf (sb-sys:signed-sap-ref-32 (advance-output-stream n stream) 0)
-             value)))
+  (setf (n-signed-mem-ref n (advance-output-stream n stream)) value)
   t)
 
 (defun flush-buffer (stream)
@@ -197,27 +241,25 @@
            (type output-stream stream)
            ((integer 1 4) n))
   (let* ((sap (output-stream-buffer-position stream))
-         (new-sap (sb-ext:truly-the word (+ sap n))))
+         (new-sap (+ sap n)))
     (declare (word sap new-sap))
     (cond ((> new-sap (output-stream-buffer-end stream))
            (flush-buffer stream)
            (setf (output-stream-buffer-position stream)
                  (the word (+ (output-stream-buffer-start stream)
                               n)))
-           (sb-sys:int-sap (output-stream-buffer-start stream)))
+           (output-stream-buffer-start stream))
           (t
            (setf (output-stream-buffer-position stream)
                  new-sap)
-           (sb-sys:int-sap sap)))))
+           sap))))
 
 (declaim (inline write-n-bytes))
 (defun write-n-bytes (value n stream)
   (declare (optimize (space 0))
-           (type word n))
-  (setf (sb-sys:sap-ref-32
-         (advance-output-stream n stream)
-         0)
-        value))
+           (type (integer 1 4) n))
+  (setf (mem-ref-32 (advance-output-stream n stream)) value))
+
 ;;;
 
 (defmacro with-io-file ((stream file

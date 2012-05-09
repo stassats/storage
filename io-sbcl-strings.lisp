@@ -6,29 +6,25 @@
                          (buffer-char-size 1)
                          from-memory)
   (declare (type (integer 1 8) memory-char-size buffer-char-size)
-           (word buffer-end)
-           (sb-sys:system-area-pointer string buffer)
+           (word string buffer buffer-end)
            (optimize speed (safety 0))
            (sb-ext:muffle-conditions sb-ext:compiler-note))
-  (let* ((string (sb-sys:sap-int string))
-         (buffer (sb-sys:sap-int buffer)))
-    (declare (word string buffer))
-    (when (= 1 memory-char-size buffer-char-size)
-      (setf memory-char-size sb-vm:n-word-bytes
-            buffer-char-size sb-vm:n-word-bytes))
-    (loop for string-index of-type word = string
-          then (+ string-index memory-char-size)
-          for buffer-index of-type word = buffer
-          then (+ buffer-index buffer-char-size)
-          while (< buffer-index buffer-end)
-          do
-          (if from-memory
-              (setf (sb-sys:sap-ref-word (sb-sys:int-sap buffer-index) 0)
-                    (sb-sys:sap-ref-word (sb-sys:int-sap string-index) 0))
-              (setf (sb-sys:sap-ref-word (sb-sys:int-sap string-index) 0)
-                    (if (< buffer-char-size memory-char-size)
-                        (n-sap-ref buffer-char-size (sb-sys:int-sap buffer-index) 0)
-                        (sb-sys:sap-ref-word (sb-sys:int-sap buffer-index) 0)))))))
+  (when (= 1 memory-char-size buffer-char-size)
+    (setf memory-char-size sb-vm:n-word-bytes
+          buffer-char-size sb-vm:n-word-bytes))
+  (loop for string-index of-type word = string
+        then (+ string-index memory-char-size)
+        for buffer-index of-type word = buffer
+        then (+ buffer-index buffer-char-size)
+        while (< buffer-index buffer-end)
+        do
+        (if from-memory
+            (setf (mem-ref-word buffer-index)
+                  (mem-ref-word string-index))
+            (setf (mem-ref-word string-index)
+                  (if (< buffer-char-size memory-char-size)
+                      (n-mem-ref buffer-char-size buffer-index)
+                      (mem-ref-word buffer-index))))))
 
 (declaim (inline write-optimized-string-generic))
 (defun write-optimized-string-generic (string stream
@@ -41,11 +37,11 @@
   (sb-sys:with-pinned-objects (string)
     (let* ((length (* (length string) buffer-char-size))
            (position (output-stream-buffer-position stream))
-           (string-sap (sb-sys:vector-sap string))
+           (string (vector-address string))
            (new-position (sb-ext:truly-the word (+ position length))))
       (declare (type word position new-position))
       (cond ((<= new-position (output-stream-buffer-end stream))
-             (copy-string string-sap (sb-sys:int-sap position) new-position
+             (copy-string string position new-position
                           :buffer-char-size buffer-char-size
                           :memory-char-size memory-char-size
                           :from-memory t)
@@ -61,9 +57,7 @@
                         (left (- left rem))
                         (left-length (- length left)))
                    (declare (word left left-length))
-                   (copy-string string-sap
-                                (sb-sys:int-sap position)
-                                (+ position left)
+                   (copy-string string position (+ position left)
                                 :buffer-char-size buffer-char-size
                                 :memory-char-size memory-char-size
                                 :from-memory t)
@@ -72,9 +66,8 @@
                           word
                           (- (output-stream-buffer-end stream) rem)))
                    (flush-buffer stream)
-                   (copy-string (sb-sys:sap+ string-sap (* quot memory-char-size))
-                                (sb-sys:int-sap start)
-                                (+ start left-length)
+                   (copy-string (+ string (* quot memory-char-size))
+                                start (+ start left-length)
                                 :buffer-char-size buffer-char-size
                                 :memory-char-size memory-char-size
                                 :from-memory t)
@@ -98,11 +91,11 @@
   (sb-sys:with-pinned-objects (string)
     (let* ((position (input-stream-buffer-position stream))
            (length (* length buffer-char-size))
-           (string-sap (sb-sys:vector-sap string))
+           (string (vector-address string))
            (new-position (sb-ext:truly-the word (+ position length))))
       (declare (type word position new-position))
       (cond ((<= new-position (input-stream-buffer-end stream))
-             (copy-string string-sap (sb-sys:int-sap position) new-position
+             (copy-string string position new-position
                           :buffer-char-size buffer-char-size
                           :memory-char-size memory-char-size)
              (setf (input-stream-buffer-position stream)
@@ -122,41 +115,32 @@
                             (type (integer 0 3) left-bytes))
                    (when (> left-length (input-stream-left stream))
                      (error "End of file ~a" stream))
-                   (copy-string string-sap (sb-sys:int-sap position)
-                                (+ position left)
+                   (copy-string string position (+ position left)
                                 :buffer-char-size buffer-char-size
                                 :memory-char-size memory-char-size)
-                   (setf string-sap
-                         (sb-sys:sap+ string-sap
-                                      (* quot memory-char-size)))
+                   (incf string (* quot memory-char-size))
                    (cond
                      ((> rem 0)
                       (let ((left-char
                               (sb-ext:truly-the
                                (unsigned-byte 24)
-                               (n-sap-ref rem
-                                          (sb-sys:int-sap (- end rem)) 0))))
+                               (n-mem-ref rem (- end rem)))))
                         (decf left-length 3)
                         (fill-buffer stream 0)
-                        (setf (sb-sys:sap-ref-32 string-sap 0)
+                        (setf (mem-ref-32 string)
                               (logior left-char
                                       (ash
                                        (the (unsigned-byte 24)
-                                            (n-sap-ref left-bytes
-                                                       (sb-sys:int-sap start)))
+                                            (n-mem-ref left-bytes start))
                                        (* rem 8))))
                         (setf start
                               (sb-ext:truly-the word (+ start left-bytes)))
-                        (setf string-sap
-                              (sb-sys:sap+ string-sap
-                                           memory-char-size))))
+                        (incf string memory-char-size)))
                      (t
                       (fill-buffer stream 0)))
-                   (copy-string string-sap (sb-sys:int-sap start)
-                                (+ start left-length)
+                   (copy-string string start (+ start left-length)
                                 :buffer-char-size buffer-char-size
                                 :memory-char-size memory-char-size)
-
                    (setf (input-stream-buffer-position stream)
                          (sb-ext:truly-the word (+ start left-length)))))))
             (t
@@ -170,8 +154,7 @@
 
 (declaim (inline write-ascii-string-optimized))
 (defun write-ascii-string-optimized (string stream)
-  (declare (optimize speed)
-           (simple-string string))
+  (declare (simple-string string))
   (write-optimized-string-generic string stream))
 
 (declaim (inline write-ascii-non-base-string-optimized))
