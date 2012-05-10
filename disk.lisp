@@ -82,10 +82,15 @@
     #+sb-unicode simple-base-string ; on #-sb-unicode the limit is 255
     (satisfies ascii-string-p)))
 
+#-sb-unicode
 (defun ascii-string-p (string)
   (declare (simple-string string))
   (loop for char across string
         always (char< char +ascii-char-limit+)))
+
+#+sb-unicode
+(defun ascii-string-p (string)
+  (optimized-ascii-string-p string))
 
 (deftype storage-fixnum ()
   `(signed-byte ,(* +fixnum-length+ 8)))

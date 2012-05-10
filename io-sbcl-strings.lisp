@@ -38,7 +38,7 @@
     (let* ((length (* (length string) buffer-char-size))
            (position (output-stream-buffer-position stream))
            (string (vector-address string))
-           (new-position (sb-ext:truly-the word (+ position length))))
+           (new-position (truly-the word (+ position length))))
       (declare (type word position new-position))
       (cond ((<= new-position (output-stream-buffer-end stream))
              (copy-string string position new-position
@@ -48,7 +48,7 @@
              (setf (output-stream-buffer-position stream)
                    new-position))
             ((<= length +buffer-size+)
-             (let ((left (sb-ext:truly-the
+             (let ((left (truly-the
                           word
                           (- (output-stream-buffer-end stream) position))))
                (declare (buffer-length left))
@@ -62,7 +62,7 @@
                                 :memory-char-size memory-char-size
                                 :from-memory t)
                    (setf (output-stream-buffer-position stream)
-                         (sb-ext:truly-the
+                         (truly-the
                           word
                           (- (output-stream-buffer-end stream) rem)))
                    (flush-buffer stream)
@@ -72,7 +72,7 @@
                                 :memory-char-size memory-char-size
                                 :from-memory t)
                    (setf (output-stream-buffer-position stream)
-                         (sb-ext:truly-the word (+ start left-length)))))))
+                         (truly-the word (+ start left-length)))))))
             (t
              (error "Strings of more than ~a are not supported yet."
                     +buffer-size+)))))
@@ -92,7 +92,7 @@
     (let* ((position (input-stream-buffer-position stream))
            (length (* length buffer-char-size))
            (string (vector-address string))
-           (new-position (sb-ext:truly-the word (+ position length))))
+           (new-position (truly-the word (+ position length))))
       (declare (type word position new-position))
       (cond ((<= new-position (input-stream-buffer-end stream))
              (copy-string string position new-position
@@ -101,7 +101,7 @@
              (setf (input-stream-buffer-position stream)
                    new-position))
             ((<= length +buffer-size+)
-             (let ((left (sb-ext:truly-the
+             (let ((left (truly-the
                           word
                           (- (input-stream-buffer-end stream) position))))
                (declare (buffer-length left))
@@ -122,7 +122,7 @@
                    (cond
                      ((> rem 0)
                       (let ((left-char
-                              (sb-ext:truly-the
+                              (truly-the
                                (unsigned-byte 24)
                                (n-mem-ref rem (- end rem)))))
                         (decf left-length 3)
@@ -134,7 +134,7 @@
                                             (n-mem-ref left-bytes start))
                                        (* rem 8))))
                         (setf start
-                              (sb-ext:truly-the word (+ start left-bytes)))
+                              (truly-the word (+ start left-bytes)))
                         (incf string memory-char-size)))
                      (t
                       (fill-buffer stream 0)))
@@ -142,7 +142,7 @@
                                 :buffer-char-size buffer-char-size
                                 :memory-char-size memory-char-size)
                    (setf (input-stream-buffer-position stream)
-                         (sb-ext:truly-the word (+ start left-length)))))))
+                         (truly-the word (+ start left-length)))))))
             (t
              (error "Strings of more than ~a are not supported yet."
                     +buffer-size+)))))
@@ -172,3 +172,19 @@
   (write-optimized-string-generic string stream
                                   :buffer-char-size 3
                                   :memory-char-size 4))
+;;;
+
+(declaim (inline optimized-ascii-string-p))
+(defun optimized-ascii-string-p (string)
+  (declare (simple-string string)
+           (optimize speed))
+  (let* ((start (vector-address string))
+         (end (truly-the word (+ start
+                                 (* (length string) 4)))))
+    (declare (word start end))
+    (loop for address of-type word = start
+          then (truly-the word (+ address sb-vm:n-word-bytes))
+          while (< address end)
+          never (logtest (mem-ref-word address)
+                         #+x86-64 #xFFFFFF80FFFFFF80
+                         #+x86 #xFFFFFF80))))

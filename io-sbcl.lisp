@@ -49,8 +49,9 @@
 (define-sap-ref-wrapper #.sb-vm:n-word-bits :name word :prefix signed)
 
 (declaim (inline mem-ref-24))
-(defun mem-ref-24 (address offset)
+(defun mem-ref-24 (address &optional (offset 0))
   (declare (optimize speed (safety 0))
+           (word address)
            (fixnum offset))
   (mask-field (byte 24 0) (mem-ref-32 address offset)))
 
@@ -85,6 +86,11 @@
 (declaim (inline vector-address))
 (defun vector-address (vector)
   (sb-sys:sap-int (sb-sys:vector-sap vector)))
+
+(defmacro truly-the (type form)
+  `(#+sbcl sb-ext:truly-the
+    #-sbcl the
+    ,type ,form))
 
 ;;;
 
@@ -197,7 +203,7 @@
   (declare (type (integer 1 4) n)
            (type input-stream stream))
   (let* ((sap (input-stream-buffer-position stream))
-         (new-sap (sb-ext:truly-the word (+ sap n))))
+         (new-sap (truly-the word (+ sap n))))
     (declare (word sap new-sap))
     (cond ((> new-sap (input-stream-buffer-end stream))
            (refill-buffer n stream)
