@@ -54,6 +54,7 @@
 
 (declaim (inline n-mem-ref))
 (defun n-mem-ref (n address &optional (offset 0))
+  (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
   (funcall (ecase n
              (1 #'mem-ref-8)
              (2 #'mem-ref-16)
