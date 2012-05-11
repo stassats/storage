@@ -25,7 +25,6 @@
        (defun ,name (address &optional (offset 0))
          (declare (type word address)
                   (fixnum offset)
-                  (optimize speed)
                   (sb-ext:muffle-conditions sb-ext:compiler-note))
          (,sb-sys (sb-sys:int-sap address) offset))
 
@@ -34,7 +33,6 @@
          (declare (type (unsigned-byte ,bits) value)
                   (type word address)
                   (fixnum offset)
-                  (optimize speed)
                   (sb-ext:muffle-conditions sb-ext:compiler-note))
          (setf (,sb-sys (sb-sys:int-sap address) offset) value)))))
 
@@ -50,8 +48,7 @@
 
 (declaim (inline mem-ref-24))
 (defun mem-ref-24 (address &optional (offset 0))
-  (declare (optimize speed (safety 0))
-           (word address)
+  (declare (word address)
            (fixnum offset))
   (mask-field (byte 24 0) (mem-ref-32 address offset)))
 
@@ -215,7 +212,8 @@
 
 (declaim (inline read-n-bytes))
 (defun read-n-bytes (n stream)
-  (declare (type (integer 1 4) n))
+  (declare (type (integer 1 4) n)
+           (optimize speed))
   (n-mem-ref n (advance-input-stream n stream)))
 
 (declaim (inline read-n-signed-bytes))
@@ -233,11 +231,12 @@
   (setf (n-signed-mem-ref n (advance-output-stream n stream)) value)
   t)
 
-(defun flush-buffer (stream)
+(defun flush-buffer (stream &optional count)
   (unix-write (output-stream-fd stream)
               (output-stream-buffer-start stream)
-              (- (output-stream-buffer-position stream)
-                 (output-stream-buffer-start stream))))
+              (or count
+                  (- (output-stream-buffer-position stream)
+                     (output-stream-buffer-start stream)))))
 
 (declaim (inline advance-output-stream))
 (defun advance-output-stream (n stream)
