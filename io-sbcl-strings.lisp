@@ -99,10 +99,7 @@
              (fill-buffer stream 0)
              (setf (mem-ref-32 string)
                    (logior left-char
-                           (ash
-                            (the (unsigned-byte 24)
-                                 (n-mem-ref left-bytes start))
-                            (* rem 8))))
+                           (ash (n-mem-ref left-bytes start) (* rem 8))))
              (setf start (+ start left-bytes))
              (incf string memory-char-size)))
           (t
