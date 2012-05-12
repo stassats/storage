@@ -31,5 +31,27 @@
    #:slot-unit
    #:storage-file
    #:find-slot
-   #:modified))
+   #:modified
+   #:ascii-string
+   #:cons
+   #:string
+   #:null
+   #:fixnum
+   #:bignum
+   #:fixnum-ratio
+   #:ratio
+   #:double-float
+   #:single-float
+   #:complex
+   #:list-of-objects
+   #:symbol
+   #:intern-package-and-symbol
+   #:intern-symbol
+   #:character
+   #:simple-vector
+   #:vector
+   #:array
+   #:hash-table
+   #:pathname
+   #:storable-typed-class))
 

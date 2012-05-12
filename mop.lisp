@@ -42,6 +42,12 @@
                :initarg :search-key
                :accessor search-key)))
 
+(defclass storable-typed-class (storable-class)
+  ((slot-writers :initform nil
+                 :accessor slot-writers)
+   (slot-readers :initform nil
+                 :accessor slot-readers)))
+
 (defun initialize-storable-class (next-method class &rest args
                                   &key direct-superclasses &allow-other-keys)
   (apply next-method class
@@ -70,7 +76,17 @@
      (superclass standard-class))
   t)
 
-(defclass storable-slot-mixin ()
+(defmethod validate-superclass
+    ((class standard-class)
+     (superclass storable-typed-class))
+  t)
+
+(defmethod validate-superclass
+    ((class storable-typed-class)
+     (superclass standard-class))
+  t)
+
+(defclass storable-slot ()
   ((storep :initarg :storep
            :initform t
            :reader store-slot-p)
@@ -87,22 +103,38 @@
          :initform nil
          :reader slot-unit)))
 
-(defclass storable-direct-slot-definition (storable-slot-mixin
-                                           standard-direct-slot-definition)
+(defclass storable-typed-slot (storable-slot)
+  ((disk-type :initarg :disk-type
+              :initform nil
+              :reader disk-type)))
+
+(defclass storable-direct-slot-definition
+    (storable-slot standard-direct-slot-definition)
   ())
 
 (defclass storable-effective-slot-definition
-    (storable-slot-mixin standard-effective-slot-definition)
+    (storable-slot standard-effective-slot-definition)
   ())
 
-(defmethod direct-slot-definition-class ((class storable-class)
-                                         &rest initargs)
-  (declare (ignore initargs))
+(defclass storable-direct-typed-slot-definition
+    (storable-typed-slot standard-direct-slot-definition)
+  ())
+
+(defclass storable-effective-typed-slot-definition
+    (storable-typed-slot standard-effective-slot-definition)
+  ())
+
+(defmethod direct-slot-definition-class ((class storable-class) &key)
   (find-class 'storable-direct-slot-definition))
 
-(defmethod effective-slot-definition-class ((class storable-class)
-                                            &key &allow-other-keys)
+(defmethod effective-slot-definition-class ((class storable-class) &key)
   (find-class 'storable-effective-slot-definition))
+
+(defmethod direct-slot-definition-class ((class storable-typed-class) &key)
+  (find-class 'storable-direct-typed-slot-definition))
+
+(defmethod effective-slot-definition-class ((class storable-typed-class) &key)
+  (find-class 'storable-effective-typed-slot-definition))
 
 (defmethod compute-effective-slot-definition
     ((class storable-class) slot-name direct-definitions)
@@ -119,6 +151,16 @@
             unit (slot-unit direct-definition)))
     effective-definition))
 
+(defmethod compute-effective-slot-definition
+    ((class storable-typed-class) slot-name direct-definitions)
+  (declare (ignore slot-name))
+  (let ((effective-definition (call-next-method))
+        (direct-definition (car direct-definitions)))
+    (when (typep direct-definition 'storable-direct-typed-slot-definition)
+      (with-slots (disk-type) effective-definition
+        (setf disk-type (disk-type direct-definition))))
+    effective-definition))
+
 (defun slots-with-relations (class)
   (loop for slot across (slots-to-store class)
         for relation = (slot-relation slot)
@@ -133,7 +175,9 @@
                (slot-definition-initform slot-definition)))
        slot-definitions))
 
-(defun initialize-class-slots (class slots)
+(defgeneric initialize-class-slots (class slots))
+
+(defmethod initialize-class-slots ((class storable-class) slots)
   (let* ((slots-to-store (coerce (remove-if-not #'store-slot-p slots)
                                  'simple-vector)))
     (when (> (length slots-to-store) 32)
@@ -151,6 +195,18 @@
     (setf (class-relations class)
           (slots-with-relations class))
     (compute-search-key class slots)))
+
+(defmethod initialize-class-slots :after ((class storable-typed-class) slots)
+  (loop for slot across (slots-to-store class)
+        for disk-type = (disk-type slot)
+        for reader = (or (find-reader disk-type)
+                         (warn "No readers for disk-type: ~a" disk-type))
+        for writer = (or (find-writer disk-type)
+                         (warn "No writers for disk-type: ~a" disk-type))
+        collect reader into readers
+        collect writer into writers
+        finally (setf (slot-readers class) readers
+                      (slot-writers class) writers)))
 
 (defmethod finalize-inheritance :after ((class storable-class))
   (initialize-class-slots class (class-slots class)))

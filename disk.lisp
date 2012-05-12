@@ -48,7 +48,9 @@
     (position type *codes*)))
 
 (defparameter *readers* (make-array (length *codes*)))
-(declaim (type (simple-array function (*)) *readers*))
+(defparameter *writers* (make-array (length *codes*)))
+(declaim (type (simple-array function (*))
+               *readers* *writers*))
 
 (defmacro defreader (type (stream) &body body)
   (let ((name (intern (format nil "~a-~a" type '#:reader))))
@@ -58,10 +60,31 @@
        (setf (aref *readers* ,(type-code type))
              #',name))))
 
+(defmacro defwriter ((type &key no-method) (object stream) &body body)
+  (let ((name (alexandria:symbolicate type '#:-writer))
+        (type-code (type-code type)))
+    `(progn
+       ,(unless no-method
+          `(defmethod write-object (object stream)
+             (write-n-bytes ,type-code 1 stream)
+             (,name object stream)))
+       (defun ,name (,object ,stream)
+         ,@body)
+       (setf (aref *writers* ,type-code)
+             #',name))))
+
 (declaim (inline call-reader))
 (defun call-reader (code stream)
   ;; (collect-stats code)
   (funcall (aref *readers* code) stream))
+
+(defun find-reader (type)
+  (and (type-code type)
+       (aref *readers* (type-code type))))
+
+(defun find-writer (type)
+  (and (type-code type)
+   (aref *writers* (type-code type))))
 
 ;;;
 
@@ -132,8 +155,12 @@
    (lambda (class objects)
      (let ((slots (slot-locations-and-initforms class))
            (bytes-for-slots (number-of-bytes-for-slots class)))
-       (dolist (object objects)
-         (write-standard-object object slots bytes-for-slots stream))))))
+       (if (typep class 'storable-typed-class)
+           (let ((writers (slot-writers class)))
+             (dolist (object objects)
+               (write-typed-object object slots writers bytes-for-slots stream)))
+           (dolist (object objects)
+             (write-standard-object object slots bytes-for-slots stream)))))))
 
 (declaim (inline read-next-object))
 (defun read-next-object (stream)
@@ -230,8 +257,8 @@
 
 ;;; Integer
 
-(declaim (inline write-fixnum))
-(defun write-fixnum (n stream)
+(declaim (inline fixnum-writer))
+(defwriter (fixnum :no-method t) (n stream)
   (declare (storage-fixnum n))
   (write-n-signed-bytes n +fixnum-length+ stream))
 
@@ -257,7 +284,7 @@
   (typecase object
     (storage-fixnum
      (write-n-bytes #.(type-code 'fixnum) 1 stream)
-     (write-fixnum object stream))
+     (fixnum-writer object stream))
     (t
      (write-n-bytes #.(type-code 'bignum) 1 stream)
      (write-bignum object stream))))
@@ -290,8 +317,8 @@
     (cond ((and (typep numerator 'storage-fixnum)
                 (typep denominator 'storage-fixnum))
            (write-n-bytes #.(type-code 'fixnum-ratio) 1 stream)
-           (write-fixnum numerator stream)
-           (write-fixnum denominator stream))
+           (fixnum-writer numerator stream)
+           (fixnum-writer denominator stream))
           (t
            (write-n-bytes #.(type-code 'ratio) 1 stream)
            (write-object numerator stream)
@@ -646,8 +673,7 @@
 
 ;;; identifiable
 
-(defmethod write-object ((object identifiable) stream)
-  (write-n-bytes #.(type-code 'identifiable) 1 stream)
+(defwriter (identifiable) (object stream)
   (write-n-bytes (id object) +id-length+ stream))
 
 (declaim (inline get-instance))
@@ -697,6 +723,36 @@
           do (setf (standard-instance-access object
                                              (car (aref slots slot-id)))
                    (read-next-object stream))
+          do (setf map (ash map -1)))))
+
+;;; typed objects
+
+(defun write-typed-object (object slots writers bytes-for-slots stream)
+  (declare (simple-vector slots))
+  (let ((map (make-slot-map object slots)))
+    (declare (type (unsigned-byte 32) map))
+    (write-n-bytes map bytes-for-slots stream)
+    (loop for slot-id of-type (integer 0 32) from 0
+          for writer in writers
+          while (plusp map)
+          when (oddp map)
+          do
+          (funcall writer
+                   (standard-instance-access object (car (aref slots slot-id)))
+                   stream)
+          do (setf map (ash map -1)))))
+
+(defun read-typed-object (object slots readers bytes-for-slots stream)
+  (declare (simple-vector slots))
+  (let ((map (read-n-bytes bytes-for-slots stream)))
+    (declare (type (unsigned-byte 32) map))
+    (loop for reader in readers
+          for slot-id of-type (integer 0 32) from 0
+          while (plusp map)
+          when (oddp map)
+          do (setf (standard-instance-access object
+                                             (car (aref slots slot-id)))
+                   (funcall reader stream))
           do (setf map (ash map -1)))))
 
 ;;;
@@ -770,6 +826,16 @@
             for (class . n) of-type (t . fixnum) in info
             for slots = (slot-locations-and-initforms-read class)
             for bytes-for-slots = (number-of-bytes-for-slots class)
+            ;; if (typep class 'storable-typed-class)
+            ;; do
+            ;; (loop with readers = (slot-readers class)
+            ;;       repeat n
+            ;;       for instance = (aref array i)
+            ;;       do
+            ;;       (incf i)
+            ;;       (read-typed-object instance slots readers
+            ;;                          bytes-for-slots stream))
+            ;; else
             do
             (loop repeat n
                   for instance = (aref array i)
