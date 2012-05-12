@@ -6,13 +6,12 @@
 (in-package #:storage)
 
 (defclass storage ()
-  ((modified :initarg :modified
-               :initform nil
-               :accessor modified)
+  ((modified :initform nil
+             :accessor modified)
    (data :initform nil
          :accessor storage-data)
-   (file :initform nil
-         :initarg :file
+   (file :initarg :file
+         :initform nil
          :accessor storage-file)))
 
 (defclass storable-class (standard-class)
@@ -27,19 +26,20 @@
    (all-slot-locations-and-initforms
     :initform nil
     :accessor all-slot-locations-and-initforms)
-   (number-of-bytes-for-slots :initform nil
-                              :accessor number-of-bytes-for-slots)
+   (number-of-bytes-for-slots
+    :initform nil
+    :accessor number-of-bytes-for-slots)
    (relations :initform nil
               :accessor class-relations)
    (initforms :initform nil
               :accessor class-initforms)
    (objects :initform nil
             :accessor objects-of-class)
-   (storage :initform nil
-            :initarg :storage
+   (storage :initarg :storage
+            :initform nil
             :accessor class-storage)
-   (search-key :initform nil
-               :initarg :search-key
+   (search-key :initarg :search-key
+               :initform nil
                :accessor search-key)))
 
 (defun initialize-storable-class (next-method class &rest args
@@ -50,24 +50,20 @@
              (list* :direct-superclasses (list (find-class 'identifiable))
                     args))))
 
-(defmethod initialize-instance :around ((class storable-class)
-                                        &rest args)
+(defmethod initialize-instance :around ((class storable-class) &rest args)
   (apply #'initialize-storable-class #'call-next-method class args))
 
-(defmethod reinitialize-instance :around ((class storable-class)
-                                          &rest args)
+(defmethod reinitialize-instance :around ((class storable-class) &rest args)
   (apply #'initialize-storable-class #'call-next-method class args))
 
 ;;;
 
 (defmethod validate-superclass
-    ((class standard-class)
-     (superclass storable-class))
+    ((class standard-class) (superclass storable-class))
   t)
 
 (defmethod validate-superclass
-    ((class storable-class)
-     (superclass standard-class))
+    ((class storable-class) (superclass standard-class))
   t)
 
 (defclass storable-slot-mixin ()
@@ -87,21 +83,18 @@
          :initform nil
          :reader slot-unit)))
 
-(defclass storable-direct-slot-definition (storable-slot-mixin
-                                           standard-direct-slot-definition)
+(defclass storable-direct-slot-definition
+    (storable-slot-mixin standard-direct-slot-definition)
   ())
 
 (defclass storable-effective-slot-definition
     (storable-slot-mixin standard-effective-slot-definition)
   ())
 
-(defmethod direct-slot-definition-class ((class storable-class)
-                                         &rest initargs)
-  (declare (ignore initargs))
+(defmethod direct-slot-definition-class ((class storable-class) &key)
   (find-class 'storable-direct-slot-definition))
 
-(defmethod effective-slot-definition-class ((class storable-class)
-                                            &key &allow-other-keys)
+(defmethod effective-slot-definition-class ((class storable-class) &key)
   (find-class 'storable-effective-slot-definition))
 
 (defmethod compute-effective-slot-definition
@@ -137,7 +130,7 @@
   (let* ((slots-to-store (coerce (remove-if-not #'store-slot-p slots)
                                  'simple-vector)))
     (when (> (length slots-to-store) 32)
-      (error "Can't have classes with more than 32 storable slots"))
+      (error "Can't have classes with more than 32 storable slots."))
     (setf (slots-to-store class)
           slots-to-store)
     (setf (number-of-bytes-for-slots class)
@@ -150,7 +143,7 @@
           (map 'vector #'slot-definition-initform slots))
     (setf (class-relations class)
           (slots-with-relations class))
-    (compute-search-key class slots)))
+    (compute-search-key class)))
 
 (defmethod finalize-inheritance :after ((class storable-class))
   (initialize-class-slots class (class-slots class)))
@@ -159,7 +152,7 @@
   (find slot-name (class-slots class)
         :key #'slot-definition-name))
 
-(defun compute-search-key (class slots)
+(defun compute-search-key (class)
   (with-slots (search-key) class
     (let* ((key (or search-key
                     (loop for superclass in (class-direct-superclasses class)
@@ -170,11 +163,11 @@
                         (symbol key))))
       (setf search-key slot-name)
       (when slot-name
-        (unless (find slot-name slots :key #'slot-definition-name)
+        (unless (find-slot slot-name class)
           (setf search-key nil)
           (error "Search key ~a for an uknown slot in class ~a"
                  slot-name class))))))
 
 (defmethod initialize-instance :after ((class storable-class) &key)
   (when (class-storage class)
-    (pushnew class (storage-data (class-storage class)) :test #'eq)))
+    (pushnew class (storage-data (class-storage class)))))
