@@ -130,9 +130,10 @@
   (assign-ids)
   (map-all-data
    (lambda (class objects)
-     (let ((slots (slot-locations-and-initforms class)))
+     (let ((slots (slot-locations-and-initforms class))
+           (bytes-for-slots (number-of-bytes-for-slots class)))
        (dolist (object objects)
-         (write-standard-object object slots stream))))))
+         (write-standard-object object slots bytes-for-slots stream))))))
 
 (declaim (inline read-next-object))
 (defun read-next-object (stream)
@@ -455,7 +456,8 @@
     (loop for previous-cons = first-cons then new-cons
           for car = (let ((id (read-n-bytes 1 stream)))
                       (cond ((eq id +end+)
-                             (setf (cdr previous-cons) (read-next-object stream))
+                             (setf (cdr previous-cons)
+                                   (read-next-object stream))
                              (return))
                             ((call-reader id stream))))
           for new-cons = (list car)
@@ -483,8 +485,8 @@
 
 (declaim (inline bit-test))
 (defun bit-test (byte index)
-  (declare (type (unsigned-byte 8) byte)
-           (type (integer 0 7) index))
+  (declare (type (unsigned-byte 32) byte)
+           (type (integer 0 31) index))
   (ldb-test (byte 1 index) byte))
 
 (declaim (inline read-fill-pointer))
@@ -657,24 +659,45 @@
 
 ;;; standard-object
 
-(defun write-standard-object (object slots stream)
+(declaim (notinline make-slot-map))
+(defun make-slot-map (object slots)
   (declare (simple-vector slots))
-  (loop for id below (length slots)
-        for (location . initform) = (aref slots id)
-        for value = (standard-instance-access object location)
-        unless (eql value initform)
-        do
-        (write-n-bytes id 1 stream)
-        (write-object value stream))
-  (write-n-bytes +end+ 1 stream))
+  (let ((map 0))
+    (declare (type (unsigned-byte 32) map))
+    (loop for i from (1- (length slots)) downto 0
+          for (location . initform) = (aref slots i)
+          for value = (standard-instance-access object location)
+          do (setf map
+                   (if (eql value initform)
+                       (the (unsigned-byte 32) (ash map 1))
+                       (the (unsigned-byte 32) (+ map map 1)))))
+    map))
 
-(defun standard-object-reader (instance slots stream)
+(defun write-standard-object (object slots bytes-for-slots stream)
   (declare (simple-vector slots))
-  (loop for slot-id = (read-n-bytes 1 stream)
-        until (= slot-id +end+)
-        do (setf (standard-instance-access instance
-                                           (car (aref slots slot-id)))
-                 (read-next-object stream))))
+  (let ((map (make-slot-map object slots)))
+    (declare (type (unsigned-byte 32) map))
+    (write-n-bytes map bytes-for-slots stream)
+    (loop for slot-id of-type (integer 0 32) from 0
+          while (plusp map)
+          when (oddp map)
+          do
+          (write-object
+           (standard-instance-access object (car (aref slots slot-id)))
+           stream)
+          do (setf map (ash map -1)))))
+
+(defun read-standard-object (object slots bytes-for-slots stream)
+  (declare (simple-vector slots))
+  (let ((map (read-n-bytes bytes-for-slots stream)))
+    (declare (type (unsigned-byte 32) map))
+    (loop for slot-id of-type (integer 0 32) from 0
+          while (plusp map)
+          when (oddp map)
+          do (setf (standard-instance-access object
+                                             (car (aref slots slot-id)))
+                   (read-next-object stream))
+          do (setf map (ash map -1)))))
 
 ;;;
 
@@ -746,12 +769,14 @@
       (loop with i = 0
             for (class . n) of-type (t . fixnum) in info
             for slots = (slot-locations-and-initforms-read class)
+            for bytes-for-slots = (number-of-bytes-for-slots class)
             do
             (loop repeat n
                   for instance = (aref array i)
                   do
                   (incf i)
-                  (standard-object-reader instance slots stream))))))
+                  (read-standard-object instance slots bytes-for-slots
+                                        stream))))))
 
 (defun load-data (storage &optional file)
   (let ((*storage* storage)

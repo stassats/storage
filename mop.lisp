@@ -27,10 +27,12 @@
    (all-slot-locations-and-initforms
     :initform nil
     :accessor all-slot-locations-and-initforms)
+   (number-of-bytes-for-slots :initform nil
+                              :accessor number-of-bytes-for-slots)
    (relations :initform nil
               :accessor class-relations)
    (initforms :initform nil
-	      :accessor class-initforms)
+              :accessor class-initforms)
    (objects :initform nil
             :accessor objects-of-class)
    (storage :initform nil
@@ -127,15 +129,19 @@
 (defun make-slots-cache (slot-definitions)
   (map 'vector
        (lambda (slot-definition)
-	 (cons (slot-definition-location slot-definition)
-	       (slot-definition-initform slot-definition)))
+         (cons (slot-definition-location slot-definition)
+               (slot-definition-initform slot-definition)))
        slot-definitions))
 
 (defun initialize-class-slots (class slots)
   (let* ((slots-to-store (coerce (remove-if-not #'store-slot-p slots)
                                  'simple-vector)))
+    (when (> (length slots-to-store) 32)
+      (error "Can't have classes with more than 32 storable slots"))
     (setf (slots-to-store class)
           slots-to-store)
+    (setf (number-of-bytes-for-slots class)
+          (ceiling (length slots-to-store) 8))
     (setf (slot-locations-and-initforms class)
           (make-slots-cache slots-to-store))
     (setf (all-slot-locations-and-initforms class)
