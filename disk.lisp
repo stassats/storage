@@ -659,7 +659,7 @@
 
 ;;; standard-object
 
-(declaim (notinline make-slot-map))
+(declaim (inline make-slot-map))
 (defun make-slot-map (object slots)
   (declare (simple-vector slots))
   (let ((map 0))
