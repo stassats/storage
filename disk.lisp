@@ -797,22 +797,21 @@
   (with-io-file (stream file)
     (multiple-value-bind (array info) (prepare-classes stream)
       (declare (simple-vector array))
-      (setf *indexes* array)
-      (loop with i = 0
-            for (class . n) of-type (t . fixnum) in info
-            for slots = (slot-locations-and-initforms-read class)
-            for bytes-for-slots = (number-of-bytes-for-slots class)
-            do
-            (loop repeat n
-                  for instance = (aref array i)
-                  do
-                  (incf i)
-                  (read-standard-object instance slots bytes-for-slots
-                                        stream))))))
+      (let ((*indexes* array))
+       (loop with i = 0
+             for (class . n) of-type (t . fixnum) in info
+             for slots = (slot-locations-and-initforms-read class)
+             for bytes-for-slots = (number-of-bytes-for-slots class)
+             do
+             (loop repeat n
+                   for instance = (aref array i)
+                   do
+                   (incf i)
+                   (read-standard-object instance slots bytes-for-slots
+                                         stream)))))))
 
 (defun load-data (storage &optional file)
-  (let ((*storage* storage)
-        (*indexes* *indexes*))
+  (let ((*storage* storage))
     (with-reading-packages
       (read-file (or file (storage-file *storage*))))
     (interlink-all-objects-first-time)
