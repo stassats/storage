@@ -9,6 +9,7 @@
       cons
       string
       null
+      t
       storable-class
       fixnum
       bignum
@@ -152,6 +153,15 @@
 (defreader null (stream)
   (declare (ignore stream))
   nil)
+
+;;; T
+
+(defmethod write-object ((object (eql t)) stream)
+  (write-n-bytes #.(type-code t) 1 stream))
+
+(defreader t (stream)
+  (declare (ignore stream))
+  t)
 
 ;;; Symbol
 
