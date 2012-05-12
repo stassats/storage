@@ -37,11 +37,16 @@
         (push (cons type 1) *statistics*))
     type))
 
-(defvar *indexes* #())
+(defvar *indexes*)
 (declaim (simple-vector *indexes*))
 
-(defvar *packages* #())
-(declaim (vector *packages*))
+(defvar *read-packages*)
+(defvar *read-symbols*)
+(declaim (vector *read-packages* *read-symbols*))
+
+(defvar *write-packages*)
+(defvar *write-symbols*)
+(declaim (hash-table *write-packages* *write-symbols*))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun type-code (type)
@@ -150,41 +155,67 @@
 
 ;;; Symbol
 
-(defmacro with-packages (&body body)
-  `(let ((*packages* (make-s-packages)))
+(defmacro with-writing-packages (&body body)
+  `(let ((*write-packages* (make-hash-table :test #'eq))
+         (*write-symbols* (make-hash-table :test #'eq
+                                           :size 256)))
+     ,@body))
+
+(defmacro with-reading-packages (&body body)
+  `(let ((*read-packages* (make-s-packages))
+         (*read-symbols* (make-s-symbols)))
      ,@body))
 
 (defun make-s-packages ()
-  (make-array 10 :adjustable t :fill-pointer 0))
+  (make-array 16 :adjustable t :fill-pointer 0))
+
+(defun make-s-symbols ()
+  (make-array 256 :adjustable t :fill-pointer 0))
 
 (defun make-s-package (package)
-  (let ((symbols (make-array 100 :adjustable t :fill-pointer 0)))
-    (values (vector-push-extend (cons package symbols) *packages*)
-            symbols
-            t)))
+  (vector-push-extend package *read-packages*))
 
 (defun find-s-package (package)
-  (loop for i below (length *packages*)
-        for (stored-package . symbols) = (aref *packages* i)
+  (loop for i below (length *read-packages*)
+        for stored-package = (aref *read-packages* i)
         when (eq package stored-package)
-        return (values i symbols)
-        finally (return (make-s-package package))))
+        return i
+        finally (return (values (make-s-package package) t))))
 
 (defun s-intern (symbol)
-  (multiple-value-bind (package-id symbols new-package)
+  (multiple-value-bind (package-id new-package)
       (find-s-package (symbol-package symbol))
     (let* ((existing (and (not new-package)
-                          (position symbol symbols)))
+                          (position symbol *read-symbols*)))
            (symbol-id (or existing
-                          (vector-push-extend symbol symbols))))
+                          (vector-push-extend symbol *read-symbols*))))
       (values package-id symbol-id new-package (not existing)))))
 
-(defun s-intern-existing (symbol symbols)
-  (vector-push-extend symbol symbols))
+(defun find-s-package-for-writing (package)
+  (or (gethash package *write-packages*)
+      (values (setf (gethash package *write-packages*)
+                    (hash-table-count *write-packages*))
+              t)))
+
+(defun s-intern-for-writing (symbol)
+  (multiple-value-bind (package-id new-package)
+      (find-s-package-for-writing (symbol-package symbol))
+    (let* ((existing (and (not new-package)
+                          (gethash symbol *write-symbols*)))
+           (symbol-id (or existing
+                          (setf (gethash symbol *write-symbols*)
+                                (hash-table-count *write-symbols*)))))
+      (values package-id symbol-id
+              new-package
+              (not existing)))))
+
+(defun s-intern-existing (symbol)
+  (vector-push-extend symbol *read-symbols*)
+  symbol)
 
 (defmethod write-object ((symbol symbol) stream)
-  (multiple-value-bind (package-id symbol-id
-                        new-package new-symbol) (s-intern symbol)
+  (multiple-value-bind (package-id symbol-id new-package new-symbol)
+      (s-intern-for-writing symbol)
     (cond ((and new-package new-symbol)
            (write-n-bytes #.(type-code 'intern-package-and-symbol) 1 stream)
            (write-object (package-name (symbol-package symbol)) stream)
@@ -195,38 +226,29 @@
            (write-object (symbol-name symbol) stream))
           (t
            (write-n-bytes #.(type-code 'symbol) 1 stream)
-           (write-n-bytes package-id +sequence-length+ stream)
            (write-n-bytes symbol-id +sequence-length+ stream)))))
 
 (defreader symbol (stream)
-  (let* ((package-id (read-n-bytes +sequence-length+ stream))
-         (symbol-id (read-n-bytes +sequence-length+ stream))
-         (package (or (aref *packages* package-id)
-                      (error "Package with id ~a not found" package-id)))
-         (symbol (aref (cdr package) symbol-id)))
+  (let* ((symbol-id (read-n-bytes +sequence-length+ stream))
+         (symbol (aref *read-symbols* symbol-id)))
     (or symbol
-        (error "Symbol with id ~a in package ~a not found"
-               symbol-id (car package)))))
+        (error "Symbol with id ~a is not found" symbol-id))))
 
 (defreader intern-package-and-symbol (stream)
   (let* ((package-name (read-next-object stream))
          (symbol-name (read-next-object stream))
          (package (or (find-package package-name)
-                      (error "Package ~a not found" package-name)))
-         (symbol (intern symbol-name package))
-         (s-package (nth-value 1 (make-s-package package))))
-    (s-intern-existing symbol s-package)
-    symbol))
+                      (error "Package ~a not found" package-name))))
+    (make-s-package package)
+    (s-intern-existing (intern symbol-name package))))
 
 (defreader intern-symbol (stream)
   (let* ((package-id (read-n-bytes +sequence-length+ stream))
          (symbol-name (read-next-object stream))
-         (package (or (aref *packages* package-id)
+         (package (or (aref *read-packages* package-id)
                       (error "Package with id ~a for symbol ~a not found"
-                             package-id symbol-name)))
-         (symbol (intern symbol-name (car package))))
-    (s-intern-existing symbol (cdr package))
-    symbol))
+                             package-id symbol-name))))
+    (s-intern-existing (intern symbol-name package))))
 
 ;;; Integer
 
@@ -781,7 +803,7 @@
 (defun load-data (storage &optional file)
   (let ((*storage* storage)
         (*indexes* *indexes*))
-    (with-packages
+    (with-reading-packages
       (read-file (or file (storage-file *storage*))))
     (interlink-all-objects-first-time)
     (setf (modified storage) nil)))
@@ -789,7 +811,7 @@
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
     (when (storage-data storage)
-      (with-packages
+      (with-writing-packages
         (with-io-file (stream (or file (storage-file storage))
                        :direction :output)
           (dump-data stream)))

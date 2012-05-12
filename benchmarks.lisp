@@ -5,7 +5,7 @@
 (defvar *test-file* #p"/tmp/test.db")
 
 (defun save-test (type amount &key object-size)
-  (with-packages
+  (with-writing-packages
    (let ((object (create-test-object type :object-size object-size)))
      (with-io-file (stream *test-file* :direction :output)
        (write-object amount stream)
@@ -22,19 +22,19 @@
           (time (progn ,@body))))
 
 (defun load-test ()
-  (with-packages
+  (with-reading-packages
    (with-io-file (stream *test-file*)
      (time-with-gc
        (loop repeat (read-next-object stream)
              do (read-next-object stream))))))
 
 (defun identity-test (x &optional (mode :both))
-  (with-packages
+  (with-writing-packages
     (when (member mode '(:both :write))
       (with-io-file (stream *test-file* :direction :output)
         (setf (fill-pointer *packages*) 0)
         (write-object x stream))))
-  (with-packages
+  (with-reading-packages
    (let ((*packages* (make-s-packages)))
      (when (member mode '(:both :read))
        (with-io-file (stream *test-file*)
