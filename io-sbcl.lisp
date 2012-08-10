@@ -55,31 +55,24 @@
 (declaim (inline n-mem-ref))
 (defun n-mem-ref (n address &optional (offset 0))
   (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
-  (funcall (ecase n
-             (1 #'mem-ref-8)
-             (2 #'mem-ref-16)
-             (3 #'mem-ref-24)
-             (4 #'mem-ref-32))
-           address
-           offset))
+  (ecase n
+    (1 (mem-ref-8 address offset))
+    (2 (mem-ref-16 address offset))
+    (3 (mem-ref-24 address offset))
+    (4 (mem-ref-32 address offset))))
 
 (declaim (inline n-signed-mem-ref (setf n-signed-mem-ref)))
 (defun n-signed-mem-ref (n address &optional (offset 0))
-  (funcall (ecase n
-             (1 #'signed-mem-ref-8)
-             (2 #'signed-mem-ref-16)
-             (4 #'signed-mem-ref-32))
-           address
-           offset))
+  (ecase n
+    (1 (signed-mem-ref-8 address offset))
+    (2 (signed-mem-ref-16 address offset))
+    (4 (signed-mem-ref-32 address offset))))
 
 (defun (setf n-signed-mem-ref) (value n address &optional (offset 0))
-  (funcall (ecase n
-             (1 #'(setf signed-mem-ref-8))
-             (2 #'(setf signed-mem-ref-16))
-             (4 #'(setf signed-mem-ref-32)))
-           value
-           address
-           offset))
+  (ecase n
+    (1 (setf (signed-mem-ref-8 address offset) value))
+    (2 (setf (signed-mem-ref-16 address offset) value))
+    (4 (setf (signed-mem-ref-32 address offset) value))))
 
 (declaim (inline vector-address))
 (defun vector-address (vector)
