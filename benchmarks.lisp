@@ -32,13 +32,11 @@
   (with-writing-packages
     (when (member mode '(:both :write))
       (with-io-file (stream *test-file* :direction :output)
-        (setf (fill-pointer *packages*) 0)
         (write-object x stream))))
   (with-reading-packages
-   (let ((*packages* (make-s-packages)))
-     (when (member mode '(:both :read))
-       (with-io-file (stream *test-file*)
-         (read-next-object stream))))))
+    (when (member mode '(:both :read))
+      (with-io-file (stream *test-file*)
+        (read-next-object stream)))))
 
 (defgeneric create-test-object (type &key &allow-other-keys))
 

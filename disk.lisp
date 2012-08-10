@@ -80,6 +80,7 @@
 (defconstant +vector-length+ 4)
 
 (defconstant +end+ 255)
+(defconstant +improper-list-end+ 254)
 
 (defconstant +ascii-char-limit+ (code-char 128))
 
@@ -463,11 +464,20 @@
 
 ;;; Cons
 
+(defun circular-list-p (list)
+  (or (eq list (cdr list))
+      (do ((fast (cdr list) (cddr fast))
+           (slow list (cdr slow)))
+          (nil)
+        (unless (and (consp fast) (listp (cdr fast)))
+          (return))
+        (when (eq fast slow)
+          (return t)))))
+
 (defmethod write-object ((list cons) stream)
-  (cond ((alexandria:circular-list-p list)
+  (cond ((circular-list-p list)
          (error "Can't store circular lists"))
-        ((and (alexandria:proper-list-p list)
-              (list-of-objects-p list))
+        ((list-of-objects-p list)
          (write-list-of-objects list stream))
         (t
          (write-n-bytes #.(type-code 'cons) 1 stream)
@@ -476,20 +486,26 @@
 (defun write-cons (cons stream)
   (loop for cdr = cons then (cdr cdr)
         do
-        (cond ((consp cdr)
-               (write-object (car cdr) stream))
-              (t
-               (write-n-bytes +end+ 1 stream)
-               (write-object cdr stream)
-               (return)))))
+        (typecase cdr
+          (cons
+           (write-object (car cdr) stream))
+          (null
+           (write-n-bytes +end+ 1 stream)
+           (return))
+          (t
+           (write-n-bytes +improper-list-end+ 1 stream)
+           (write-object cdr stream)
+           (return)))))
 
 (defreader cons (stream)
   (let ((first-cons (list (read-next-object stream))))
     (loop for previous-cons = first-cons then new-cons
           for car = (let ((id (read-n-bytes 1 stream)))
-                      (cond ((eq id +end+)
+                      (cond ((eq id +improper-list-end+)
                              (setf (cdr previous-cons)
                                    (read-next-object stream))
+                             (return))
+                            ((eq id +end+)
                              (return))
                             ((call-reader id stream))))
           for new-cons = (list car)
@@ -499,8 +515,9 @@
 ;;; list-of-objects
 
 (defun list-of-objects-p (list)
-  (loop for i in list
-        always (typep i 'standard-object)))
+  (loop for cdr = list then (cdr cdr)
+        until (null cdr)
+        always (and (consp cdr) (typep (car cdr) 'standard-object))))
 
 (defun write-list-of-objects (list stream)
   (write-n-bytes #.(type-code 'list-of-objects) 1 stream)
