@@ -97,7 +97,8 @@
 
 #+sb-unicode
 (defun ascii-string-p (string)
-  (optimized-ascii-string-p string))
+  (declare (optimize speed (safety 0)))
+  (optimized-ascii-string-p (sb-ext:truly-the simple-string string)))
 
 (deftype storage-fixnum ()
   `(signed-byte ,(* +fixnum-length+ 8)))

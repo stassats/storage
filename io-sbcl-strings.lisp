@@ -171,16 +171,26 @@
                                   :memory-char-size 4))
 ;;;
 
-(declaim (inline optimized-ascii-string-p))
-(defun optimized-ascii-string-p (string)
+(declaim (inline optimized-ascii-string-p)
+         (inline optimized-ascii-string-p-old))
+(defun optimized-ascii-string-p-old (string)
+  (declare (simple-string string)
+           (optimize speed))
+  (sb-sys:with-pinned-objects (string)
+    (let* ((start (vector-address string))
+           (end (truly-the word (+ start
+                                   (* (length string) 4)))))
+      (declare (word start end))
+      (loop for address of-type word = start
+            then (truly-the word (+ address sb-vm:n-word-bytes))
+            while (< address end)
+            never (logtest (mem-ref-word address) +ascii-mask+)))))
+
+(defun ascii-test (string)
   (declare (simple-string string))
-  (let* ((start (vector-address string))
-         (end (truly-the word (+ start
-                                 (* (length string) 4)))))
-    (declare (word start end))
-    (loop for address of-type word = start
-          then (truly-the word (+ address sb-vm:n-word-bytes))
-          while (< address end)
-          never (logtest (mem-ref-word address)
-                         #+x86-64 #xFFFFFF80FFFFFF80
-                         #+x86 #xFFFFFF80))))
+  (ascii-test string))
+
+(defun optimized-ascii-string-p (string)
+  (declare (simple-string string)
+           (optimize speed (safety 0)))
+  (ascii-test string))

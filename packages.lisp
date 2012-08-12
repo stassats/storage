@@ -1,7 +1,7 @@
 ;;; -*- Mode: Lisp -*-
 
 (defpackage #:storage
-  (:use #:closer-common-lisp)
+  (:use #:closer-common-lisp sb-assem sb-c)
   (:shadow #:count #:delete)
   (:export
    #:id

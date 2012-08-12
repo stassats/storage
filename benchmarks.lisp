@@ -5,6 +5,7 @@
 (defvar *test-file* #p"/tmp/test.db")
 
 (defun save-test (type amount &key object-size)
+  (declare (fixnum amount))
   (with-writing-packages
    (let ((object (create-test-object type :object-size object-size)))
      (with-io-file (stream *test-file* :direction :output)
