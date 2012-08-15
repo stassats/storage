@@ -186,22 +186,6 @@
 (defun make-s-package (package)
   (vector-push-extend package *read-packages*))
 
-(defun find-s-package (package)
-  (loop for i below (length *read-packages*)
-        for stored-package = (aref *read-packages* i)
-        when (eq package stored-package)
-        return i
-        finally (return (values (make-s-package package) t))))
-
-(defun s-intern (symbol)
-  (multiple-value-bind (package-id new-package)
-      (find-s-package (symbol-package symbol))
-    (let* ((existing (and (not new-package)
-                          (position symbol *read-symbols*)))
-           (symbol-id (or existing
-                          (vector-push-extend symbol *read-symbols*))))
-      (values package-id symbol-id new-package (not existing)))))
-
 (defun find-s-package-for-writing (package)
   (or (gethash package *write-packages*)
       (values (setf (gethash package *write-packages*)
