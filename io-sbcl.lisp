@@ -34,10 +34,16 @@
 
        (declaim (inline (setf ,name)))
        (defun (setf ,name) (value address &optional (offset 0))
-         (declare (type (,(if signed
-                              'signed-byte
-                              'unsigned-byte)
-                         ,bits) value)
+         (declare (type ,(cond
+                          ((eql bits 'double)
+                           'double-float)
+                          ((eql bits 'single)
+                           'single-float)
+                          (signed
+                           `(signed-byte ,bits))
+                          (t
+                           `(unsigned-byte ,bits)))
+                        value)
                   (type word address)
                   (fixnum offset)
                   (sb-ext:muffle-conditions sb-ext:compiler-note))
@@ -47,6 +53,8 @@
 (define-sap-ref-wrapper 16)
 (define-sap-ref-wrapper 32)
 (define-sap-ref-wrapper #.sb-vm:n-word-bits :name word)
+(define-sap-ref-wrapper single)
+(define-sap-ref-wrapper double)
 
 (define-sap-ref-wrapper 8 :signed t)
 (define-sap-ref-wrapper 16 :signed t)
@@ -98,7 +106,7 @@
     (sb-alien:make-alien char
                          ;; alignment
                          (+ +buffer-size+
-                            sb-vm:n-word-bytes)))))
+                            8)))))
 
 (defstruct (input-stream
             (:predicate nil))
@@ -139,7 +147,7 @@
    (input-stream-buffer-start stream)))
 
 (defun close-output-stream (stream)
-  (flush-buffer stream)
+  (flush-output-buffer stream)
   (sb-alien:alien-funcall
    (sb-alien:extern-alien "free"
                           (function (values) sb-alien:long))
@@ -169,7 +177,7 @@
                                     sb-alien:int sb-alien:long sb-alien:int))
    fd buf len))
 
-(defun fill-buffer (stream offset)
+(defun fill-input-buffer (stream offset)
   (let ((length (unix-read (input-stream-fd stream)
                            (+ (input-stream-buffer-start stream) offset)
                            (- +buffer-size+ offset))))
@@ -178,7 +186,7 @@
     (decf (input-stream-left stream) length))
   t)
 
-(defun refill-buffer (n stream)
+(defun refill-input-buffer (n stream)
   (declare (type word n)
            (input-stream stream))
   (let ((left-n-bytes (- (input-stream-buffer-end stream)
@@ -186,11 +194,15 @@
     (when (> (- n left-n-bytes)
              (input-stream-left stream))
       (error "End of file ~a" stream))
-    (unless (zerop left-n-bytes)
-      (setf (mem-ref-word (input-stream-buffer-start stream))
-            (n-mem-ref left-n-bytes
-                       (input-stream-buffer-position stream))))
-    (fill-buffer stream left-n-bytes))
+    (loop for start from (input-stream-buffer-start stream)
+          by sb-vm:n-word-bytes
+          for position from (input-stream-buffer-position stream)
+          below (input-stream-buffer-end stream)
+          by sb-vm:n-word-bytes
+          do
+          (setf (mem-ref-word start)
+                (mem-ref-word position)))
+    (fill-input-buffer stream left-n-bytes))
   (let ((start (input-stream-buffer-start stream)))
     (setf (input-stream-buffer-position stream)
           (+ start n)))
@@ -198,13 +210,13 @@
 
 (declaim (inline advance-input-stream))
 (defun advance-input-stream (n stream)
-  (declare (type (integer 1 4) n)
+  (declare (type (integer 1 8) n)
            (type input-stream stream))
   (let* ((sap (input-stream-buffer-position stream))
          (new-sap (truly-the word (+ sap n))))
     (declare (word sap new-sap))
     (cond ((> new-sap (input-stream-buffer-end stream))
-           (refill-buffer n stream)
+           (refill-input-buffer n stream)
            (input-stream-buffer-start stream))
           (t
            (setf (input-stream-buffer-position stream)
@@ -232,7 +244,7 @@
   (setf (n-signed-mem-ref n (advance-output-stream n stream)) value)
   t)
 
-(defun flush-buffer (stream &optional count)
+(defun flush-output-buffer (stream &optional count)
   (unix-write (output-stream-fd stream)
               (output-stream-buffer-start stream)
               (or count
@@ -243,14 +255,14 @@
 (defun advance-output-stream (n stream)
   (declare (optimize (safety 0))
            (type output-stream stream)
-           ((integer 1 4) n))
+           ((integer 1 8) n))
   (let* ((sap (output-stream-buffer-position stream))
          (new-sap (truly-the word (+ sap n))))
     (declare (word sap new-sap))
     (cond ((> new-sap (output-stream-buffer-end stream))
-           (flush-buffer stream)
+           (flush-output-buffer stream)
            (setf (output-stream-buffer-position stream)
-                 (+ n (output-stream-buffer-start stream)))
+                 (truly-the word (+ n (output-stream-buffer-start stream))))
            (output-stream-buffer-start stream))
           (t
            (setf (output-stream-buffer-position stream)
@@ -262,6 +274,31 @@
   (declare (optimize (space 0))
            (type (integer 1 4) n))
   (setf (mem-ref-32 (advance-output-stream n stream)) value))
+
+;;;
+
+(declaim (inline read-single-float))
+(defun read-single-float (stream)
+  (declare (optimize speed))
+  (mem-ref-single (advance-input-stream 4 stream)))
+
+(declaim (inline read-double-float))
+(defun read-double-float (stream)
+  (declare (optimize speed)
+           (sb-ext:muffle-conditions sb-ext:compiler-note))
+  (mem-ref-double (advance-input-stream 8 stream)))
+
+(declaim (inline write-single-float))
+(defun write-single-float (value stream)
+  (declare (optimize speed (safety 0)))
+  (setf (mem-ref-single (advance-output-stream 4 stream)) value)
+  t)
+
+(declaim (inline write-double-float))
+(defun write-double-float (value stream)
+  (declare (optimize speed (safety 0)))
+  (setf (mem-ref-double (advance-output-stream 8 stream)) value)
+  t)
 
 ;;;
 

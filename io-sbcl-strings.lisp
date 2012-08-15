@@ -38,7 +38,7 @@
                      :buffer-char-size buffer-char-size
                      :memory-char-size memory-char-size
                      :from-memory t)
-        (flush-buffer stream (- adjusted-end start))
+        (flush-output-buffer stream (- adjusted-end start))
         (copy-string (+ string (* quot memory-char-size))
                      start new-position
                      :buffer-char-size buffer-char-size
@@ -96,14 +96,14 @@
           ((> rem 0)
            (let ((left-char (n-mem-ref rem (- end rem))))
              (decf left-length 3)
-             (fill-buffer stream 0)
+             (fill-input-buffer stream 0)
              (setf (mem-ref-32 string)
                    (logior left-char
                            (ash (n-mem-ref left-bytes start) (* rem 8))))
              (setf start (+ start left-bytes))
              (incf string memory-char-size)))
           (t
-           (fill-buffer stream 0)))
+           (fill-input-buffer stream 0)))
         (copy-string string start (+ start left-length)
                      :buffer-char-size buffer-char-size
                      :memory-char-size memory-char-size)

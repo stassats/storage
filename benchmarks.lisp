@@ -77,6 +77,12 @@
 (defmethod create-test-object ((type (eql 'bignum-ratio)) &key)
   2333333331232/2333333331231)
 
+(defmethod create-test-object ((type (eql 'single-float)) &key)
+  1s0)
+
+(defmethod create-test-object ((type (eql 'double-float)) &key)
+  -1d0)
+
 (defun class-preallocation-test (storage)
   (loop for class in (storage-data storage)
         for length = (length (objects-of-class class))

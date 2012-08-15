@@ -324,28 +324,20 @@
 
 ;;; Float
 
-(defun write-8-bytes (n stream)
-  (write-n-bytes (ldb (byte 32 0) n) 4 stream)
-  (write-n-bytes (ldb (byte 64 32) n) 4 stream))
-
-(defun read-8-bytes (stream)
-  (logior (read-n-bytes 4 stream)
-          (ash (read-n-bytes 4 stream) 32)))
-
 (defmethod write-object ((float float) stream)
   (etypecase float
     (single-float
      (write-n-bytes #.(type-code 'single-float) 1 stream)
-     (write-n-bytes (ieee-floats:encode-float32 float) 4 stream))
+     (write-single-float float stream))
     (double-float
      (write-n-bytes #.(type-code 'double-float) 1 stream)
-     (write-8-bytes (ieee-floats:encode-float64 float) stream))))
+     (write-double-float float stream))))
 
 (defreader single-float (stream)
-  (ieee-floats:decode-float32 (read-n-bytes 4 stream)))
+  (read-single-float stream))
 
 (defreader double-float (stream)
-  (ieee-floats:decode-float64 (read-8-bytes stream)))
+  (read-double-float stream))
 
 ;;; Complex
 
