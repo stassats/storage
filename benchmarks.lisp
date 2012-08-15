@@ -46,6 +46,9 @@
 (defmethod create-test-object ((type (eql 'fixnum)) &key)
   -1)
 
+(defmethod create-test-object ((type (eql 'bignum)) &key)
+  (1+ most-positive-fixnum))
+
 (defmethod create-test-object ((type (eql 'string)) &key object-size)
   (make-string (or object-size 10000)))
 

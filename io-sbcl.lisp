@@ -14,12 +14,16 @@
 
 ;;; sap wrappers
 
-(defmacro define-sap-ref-wrapper (bits &key name prefix)
+(defmacro define-sap-ref-wrapper (bits &key name signed)
   (let ((name (alexandria:format-symbol t "~@[~a-~]~a-~a"
-                                        prefix 'mem-ref (or name bits)))
+                                        (if signed
+                                            'signed)
+                                        'mem-ref (or name bits)))
         (sb-sys (alexandria:format-symbol 'sb-sys
                                           "~@[~a-~]~a-~a"
-                                          prefix 'sap-ref (or name bits))))
+                                          (if signed
+                                              'signed)
+                                          'sap-ref (or name bits))))
     `(progn
        (declaim (inline ,name))
        (defun ,name (address &optional (offset 0))
@@ -30,7 +34,10 @@
 
        (declaim (inline (setf ,name)))
        (defun (setf ,name) (value address &optional (offset 0))
-         (declare (type (unsigned-byte ,bits) value)
+         (declare (type (,(if signed
+                              'signed-byte
+                              'unsigned-byte)
+                         ,bits) value)
                   (type word address)
                   (fixnum offset)
                   (sb-ext:muffle-conditions sb-ext:compiler-note))
@@ -41,10 +48,10 @@
 (define-sap-ref-wrapper 32)
 (define-sap-ref-wrapper #.sb-vm:n-word-bits :name word)
 
-(define-sap-ref-wrapper 8 :prefix signed)
-(define-sap-ref-wrapper 16 :prefix signed)
-(define-sap-ref-wrapper 32 :prefix signed)
-(define-sap-ref-wrapper #.sb-vm:n-word-bits :name word :prefix signed)
+(define-sap-ref-wrapper 8 :signed t)
+(define-sap-ref-wrapper 16 :signed t)
+(define-sap-ref-wrapper 32 :signed t)
+(define-sap-ref-wrapper #.sb-vm:n-word-bits :name word :signed t)
 
 (declaim (inline mem-ref-24))
 (defun mem-ref-24 (address &optional (offset 0))
