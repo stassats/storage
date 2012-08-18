@@ -675,8 +675,9 @@
                        old-vector
                        (make-array length))))
       (loop for i below length
-            for object = (read-next-object stream)
-            for slot-d = (slot-effective-definition class object)
+            for slot-name = (read-next-object stream)
+            for slot-d = (or (slot-effective-definition class slot-name)
+                             (error "No slot named ~a in ~a" class slot-name))
             for location = (slot-definition-location slot-d)
             for initiform = (slot-definition-initform slot-d)
             for old-value = (aref vector i)
