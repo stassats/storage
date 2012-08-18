@@ -10,7 +10,6 @@
       string
       null
       t
-      storable-class
       fixnum
       bignum
       fixnum-ratio
