@@ -137,6 +137,8 @@
           (ceiling (length slots-to-store) 8))
     (setf (slot-locations-and-initforms class)
           (make-slots-cache slots-to-store))
+    (setf (slot-locations-and-initforms-read class)
+          (copy-seq (slot-locations-and-initforms class)))
     (setf (all-slot-locations-and-initforms class)
           (make-slots-cache slots))
     (setf (class-initforms class)

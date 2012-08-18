@@ -129,7 +129,7 @@
                  +sequence-length+ stream)
   (map-all-data
    (lambda (class objects)
-     (write-object class stream)
+     (write-storable-class class stream)
      (write-n-bytes (length objects)
                     +id-length+ stream))))
 
@@ -643,8 +643,18 @@
 
 ;;; storable-class
 
-(defmethod write-object ((class storable-class) stream)
-  (write-n-bytes #.(type-code 'storable-class) 1 stream)
+(defun prepare-classes (stream)
+  (loop repeat (read-n-bytes +sequence-length+ stream)
+        for class = (read-storable-class stream)
+        for length = (read-n-bytes +id-length+ stream)
+        collect (cons class length) into info
+        sum length into array-length
+        finally
+        (let ((array (make-array array-length)))
+          (preallocate-objects array info)
+          (return (values array info)))))
+
+(defun write-storable-class (class stream)
   (write-object (class-name class) stream)
   (unless (class-finalized-p class)
     (finalize-inheritance class))
@@ -654,7 +664,7 @@
           do (write-object (slot-definition-name slot)
                            stream))))
 
-(defreader storable-class (stream)
+(defun read-storable-class (stream)
   (let ((class (find-class (read-next-object stream))))
     (unless (class-finalized-p class)
       (finalize-inheritance class))
@@ -783,17 +793,6 @@
                     do (initialize-slots instance slot-cache)
                        (setf (aref array index) instance)
                        (incf index)))))
-
-(defun prepare-classes (stream)
-  (loop repeat (read-n-bytes +sequence-length+ stream)
-        for class = (read-next-object stream)
-        for length = (read-n-bytes +id-length+ stream)
-        collect (cons class length) into info
-        sum length into array-length
-        finally
-        (let ((array (make-array array-length)))
-          (preallocate-objects array info)
-          (return (values array info)))))
 
 (defun read-file (file)
   (with-io-file (stream file)
