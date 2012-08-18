@@ -78,6 +78,7 @@
 (defconstant +id-length+ 3)
 (defconstant +hash-table-length+ 3)
 (defconstant +vector-length+ 4)
+(defconstant +slots-length+ 1)
 
 (defconstant +end+ 255)
 (defconstant +improper-list-end+ 254)
@@ -648,7 +649,7 @@
   (unless (class-finalized-p class)
     (finalize-inheritance class))
   (let ((slots (slots-to-store class)))
-    (write-n-bytes (length slots) +sequence-length+ stream)
+    (write-n-bytes (length slots) +slots-length+ stream)
     (loop for slot across slots
           do (write-object (slot-definition-name slot)
                            stream))))
@@ -658,14 +659,22 @@
     (unless (class-finalized-p class)
       (finalize-inheritance class))
     (setf (objects-of-class class) nil)
-    (let* ((length (read-n-bytes +sequence-length+ stream))
-           (vector (make-array length)))
+    (let* ((length (read-n-bytes +slots-length+ stream))
+           (old-vector (slot-locations-and-initforms-read class))
+           (vector (if (= length (length old-vector))
+                       old-vector
+                       (make-array length))))
       (loop for i below length
-            for slot-d =
-            (slot-effective-definition class (read-next-object stream))
-            do (setf (aref vector i)
-                     (cons (slot-definition-location slot-d)
-                           (slot-definition-initform slot-d))))
+            for object = (read-next-object stream)
+            for slot-d = (slot-effective-definition class object)
+            for location = (slot-definition-location slot-d)
+            for initiform = (slot-definition-initform slot-d)
+            for old-value = (aref vector i)
+            unless (and (consp old-value)
+                        (eql (car old-value) location)
+                        (eql (cdr old-value) initiform))
+            do
+            (setf (aref vector i) (cons location initiform)))
       (setf (slot-locations-and-initforms-read class) vector))
     class))
 
@@ -791,17 +800,17 @@
     (multiple-value-bind (array info) (prepare-classes stream)
       (declare (simple-vector array))
       (let ((*indexes* array))
-       (loop with i = 0
-             for (class . n) of-type (t . fixnum) in info
-             for slots = (slot-locations-and-initforms-read class)
-             for bytes-for-slots = (number-of-bytes-for-slots class)
-             do
-             (loop repeat n
-                   for instance = (aref array i)
-                   do
-                   (incf i)
-                   (read-standard-object instance slots bytes-for-slots
-                                         stream)))))))
+        (loop with i = 0
+              for (class . n) of-type (t . fixnum) in info
+              for slots = (slot-locations-and-initforms-read class)
+              for bytes-for-slots = (number-of-bytes-for-slots class)
+              do
+              (loop repeat n
+                    for instance = (aref array i)
+                    do
+                    (incf i)
+                    (read-standard-object instance slots bytes-for-slots
+                                          stream)))))))
 
 (defun load-data (storage &optional file)
   (let ((*storage* storage))
