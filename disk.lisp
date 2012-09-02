@@ -401,7 +401,8 @@
 
 (declaim (notinline read-ascii-string))
 (defun read-ascii-string (length stream)
-  (let ((string (make-string length :element-type 'base-char)))
+  (let* ((string (make-string length :element-type 'base-char))
+         (addr (vector-address string)))
     ;; #-sbcl
     ;; (loop for i below length
     ;;       do (setf (schar string i)
@@ -411,11 +412,13 @@
     (when (plusp length)
       (loop with index fixnum = -1
             do
-            (do-pair-decode (code-char (read-n-bytes 1 stream))
+            (do-pair-decode (read-n-bytes 1 stream)
               (lambda (a b)
-                (setf (schar string (incf index)) a)
-                (when b
-                  (setf (schar string (incf index)) b))))
+                (if b
+                    (setf (mem-ref-16 addr (incf index)) a
+                          index (1+ index))
+                    (setf (mem-ref-8 addr (incf index))
+                          a))))
             while (< index (1- length))))
     string))
 

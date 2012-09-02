@@ -1,5 +1,8 @@
 (in-package #:storage)
 
+(deftype ascii-char-code ()
+  '(integer 32 126))
+
 (declaim (inline ascii-char-p))
 (defun ascii-char-p (char)
   (< 31 (char-code char) 127))
@@ -23,7 +26,7 @@
           do
           (format t "~a  ~a~%" key n))))
 
-(defun make-decode-table ()
+(defun make-table ()
   (let ((alist (sort (alexandria:hash-table-alist *measurement-char-table*) #'>
                      :key #'cdr))
         (string (make-array 255)))
@@ -47,38 +50,41 @@
                    i))
     array))
 
-;;;
-
-(defun coerce-table (table)
-  (map-into table
+(defun make-decode-table (table)
+  (map-into (make-array 255 :element-type 'fixnum)
             (lambda (x)
               (if (stringp x)
-                  (coerce x 'simple-base-string)
-                  x))
+                  (let ((a (char-code (char x 0)))
+                        (b (char-code (char x 1))))
+                    (+ b (* a 256)))
+                  (char-code x)))
             table))
 
-(declaim (type (simple-array t (255)) *decode-char-table*))
-(defparameter *decode-char-table*
-  (coerce-table
-   #("er" "ed" "an" "te" "re" "e " "ar" " (" "n " "it" "on" "in" "nc" "un" "di"
-     "en" "s " "r " "cr" "d)" "or" "ic" "(u" "ri" "el" "le" "y " " S" " M" "ll"
-     "t " "ra" #\  #\! #\" #\# #\$ #\% #\& #\' #\( #\) #\* #\+ #\, #\- #\. #\/ #\0
-     #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\: #\; #\< #\= #\> #\? #\@ #\A #\B #\C
-     #\D #\E #\F #\G #\H #\I #\J #\K #\L #\M #\N #\O #\P #\Q #\R #\S #\T #\U #\V
-     #\W #\X #\Y #\Z #\[ #\\ #\] #\^ #\_ #\` #\a #\b #\c #\d #\e #\f #\g #\h #\i
-     #\j #\k #\l #\m #\n #\o #\p #\q #\r #\s #\t #\u #\v #\w #\x #\y #\z #\{ #\|
-     #\} #\~ " C" "es" "ne" " B" "at" "Ma" "is" "as" "al" "ce" "li" "he" "l " "ie"
-     "a " "d " "nd" "ch" "st" "ng" "il" "ma" "nt" "to" " G" " P" "rt" " D" "ha"
-     "la" "th" "de" "se" "am" "ro" "ol" "ge" "na" "ti" " H" "et" " A" "ia" " R"
-     "ta" " W" " L" ". " " T" "ve" "om" "ur" "Co" "nn" "ea" "ni" "rd" "us" "hi"
-     "ou" "ck" "me" "ss" "so" " F" "ir" "Pa" "Da" "Ca" "tt" "o " "ot" "Jo" "io"
-     "Ch" "(a" "rs" "St" "ac" "Ro" "im" "oo" "lo" "Ba" "ai" "be" "ke" "rr" "ry"
-     " K" "ee" "h " "Mi" "k " "os" "oi" "g " "ad" "ey" "ho" "id" " J" "ns" "rl"
-     "tr" "sh" "ec" "vi" "Ja" "m " "ay" "Ha" "si" "au" "ld" "Th" "'s" "e)" "sa"
-     " E" "An" "Br" "De" "vo" "Re" "ag" "mi" "Mo")))
+;;; 
+
+(defparameter *char-table*
+  #("er" "ed" "an" "te" "re" "e " "ar" " (" "n " "it" "on" "in" "nc" "un" "di"
+    "en" "s " "r " "cr" "d)" "or" "ic" "(u" "ri" "el" "le" "y " " S" " M" "ll"
+    "t " "ra" #\  #\! #\" #\# #\$ #\% #\& #\' #\( #\) #\* #\+ #\, #\- #\. #\/ #\0
+    #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\: #\; #\< #\= #\> #\? #\@ #\A #\B #\C
+    #\D #\E #\F #\G #\H #\I #\J #\K #\L #\M #\N #\O #\P #\Q #\R #\S #\T #\U #\V
+    #\W #\X #\Y #\Z #\[ #\\ #\] #\^ #\_ #\` #\a #\b #\c #\d #\e #\f #\g #\h #\i
+    #\j #\k #\l #\m #\n #\o #\p #\q #\r #\s #\t #\u #\v #\w #\x #\y #\z #\{ #\|
+    #\} #\~ " C" "es" "ne" " B" "at" "Ma" "is" "as" "al" "ce" "li" "he" "l " "ie"
+    "a " "d " "nd" "ch" "st" "ng" "il" "ma" "nt" "to" " G" " P" "rt" " D" "ha"
+    "la" "th" "de" "se" "am" "ro" "ol" "ge" "na" "ti" " H" "et" " A" "ia" " R"
+    "ta" " W" " L" ". " " T" "ve" "om" "ur" "Co" "nn" "ea" "ni" "rd" "us" "hi"
+    "ou" "ck" "me" "ss" "so" " F" "ir" "Pa" "Da" "Ca" "tt" "o " "ot" "Jo" "io"
+    "Ch" "(a" "rs" "St" "ac" "Ro" "im" "oo" "lo" "Ba" "ai" "be" "ke" "rr" "ry"
+    " K" "ee" "h " "Mi" "k " "os" "oi" "g " "ad" "ey" "ho" "id" " J" "ns" "rl"
+    "tr" "sh" "ec" "vi" "Ja" "m " "ay" "Ha" "si" "au" "ld" "Th" "'s" "e)" "sa"
+    " E" "An" "Br" "De" "vo" "Re" "ag" "mi" "Mo"))
+
+(declaim (type (simple-array fixnum (255)) *decode-char-table*))
+(defparameter *decode-char-table* (make-decode-table *char-table*))
 
 (declaim (type (simple-array fixnum (95 95)) *encode-char-table*))
-(defparameter *encode-char-table* (make-encode-table *decode-char-table*))
+(defparameter *encode-char-table* (make-encode-table *char-table*))
 
 (declaim (inline encode-pair))
 (defun encode-pair (a b)
@@ -88,7 +94,11 @@
 
 (declaim (inline decode-pair))
 (defun decode-pair (char)
-  (aref *decode-char-table* (char-code char)))
+  (aref *decode-char-table* char))
+
+(declaim (inline split-pair))
+(defun split-pair (pair)
+  (truncate pair 256))
 
 (declaim (inline do-pair-encode))
 (defun do-pair-encode (string function)
@@ -122,11 +132,9 @@
 
 (declaim (inline do-pair-decode))
 (defun do-pair-decode (char function)
-  (if (ascii-char-p char)
+  (if (ascii-char-p (code-char char))
       (funcall function char nil)
-      (let ((decode (decode-pair char)))
-        (declare (simple-base-string decode))
-        (funcall function (char decode 0) (char decode 1)))))
+      (funcall function (decode-pair char) t)))
 
 (defun pair-decode (string)
   (let* ((length (+ (length string)
@@ -134,9 +142,15 @@
          (new-string (make-string length :element-type 'base-char))
          (new-index -1))
     (loop for char across string
-          do (do-pair-decode char
+          do (do-pair-decode (char-code char)
                (lambda (a b)
-                 (setf (char new-string (incf new-index)) a)
-                 (when b
-                   (setf (char new-string (incf new-index)) b)))))
+                 (declare (type fixnum a))
+                 (if b
+                     (multiple-value-bind (a b) (split-pair a)
+                       (setf (char new-string (incf new-index))
+                             (code-char a)
+                             (char new-string (incf new-index))
+                             (code-char b)))
+                     (setf (char new-string (incf new-index))
+                                            (code-char a))))))
     new-string))
