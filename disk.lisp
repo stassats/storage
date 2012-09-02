@@ -85,19 +85,19 @@
 (defconstant +ascii-char-limit+ (code-char 128))
 
 (deftype ascii-string ()
-  '(and
+  '(or
     #+sb-unicode simple-base-string ; on #-sb-unicode the limit is 255
     (satisfies ascii-string-p)))
 
-;#-sb-unicode
+#-sb-unicode
 (defun ascii-string-p (string)
   (declare (simple-string string))
   (loop for char across string
         always (ascii-char-p char)))
 
-;; #+sb-unicode
-;; (defun ascii-string-p (string)
-;;   (optimized-ascii-string-p (sb-ext:truly-the simple-string string)))
+#+sb-unicode
+(defun ascii-string-p (string)
+  (optimized-ascii-string-p (sb-ext:truly-the simple-string string)))
 
 (deftype storage-fixnum ()
   `(signed-byte ,(* +fixnum-length+ 8)))
@@ -387,7 +387,6 @@
 (defmethod write-object ((string string) stream)
   (etypecase string
     ((not simple-string)
-     
      (call-next-method))
     ;; #+(and sb-unicode (or x86 x86-64))
     ;; (simple-base-string

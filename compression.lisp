@@ -1,15 +1,18 @@
 (in-package #:storage)
 
 (deftype ascii-char-code ()
+  '(integer 0 127))
+
+(deftype graphic-char-code ()
   '(integer 32 126))
 
 (declaim (inline ascii-char-p))
 (defun ascii-char-p (char)
-  (< 31 (char-code char) 127))
+  (typep (char-code char) 'ascii-char-code))
 
-(declaim (inline relative-ascii-code))
-(defun relative-ascii-code (char)
-  (1+ (- (char-code char) (char-code #\Space))))
+(declaim (inline relative-graphic-code))
+(defun relative-graphic-code (char)
+  (- (char-code char) (char-code #\Space)))
 
 (defparameter *measurement-char-table* (make-hash-table :test #'equal))
 
@@ -28,30 +31,26 @@
 
 (defun make-table ()
   (let ((alist (sort (alexandria:hash-table-alist *measurement-char-table*) #'>
-                     :key #'cdr))
-        (string (make-array 255)))
-    (loop for i below (length string)
-          do (setf (aref string i)
-                   (if (ascii-char-p (code-char i))
-                       (code-char i)
-                       (car (pop alist)))))
-    string))
+                     :key #'cdr)))
+    (map-into (make-array 128)
+              (lambda (x) (car x))
+              alist)))
 
 (defun make-encode-table (decode-table)
   (let ((array (make-array '(95 95)
                            :element-type 'fixnum
                            :initial-element -1)))
-    (loop for i from 0
+    (loop for i from 128
           for pair across decode-table
           when (stringp pair)
           do (setf (aref array
-                         (relative-ascii-code (char pair 0))
-                         (relative-ascii-code (char pair 1)))
+                         (relative-graphic-code (char pair 0))
+                         (relative-graphic-code (char pair 1)))
                    i))
     array))
 
 (defun make-decode-table (table)
-  (map-into (make-array 255 :element-type 'fixnum)
+  (map-into (make-array 127 :element-type 'fixnum)
             (lambda (x)
               (if (stringp x)
                   (let ((a (char-code (char x 0)))
@@ -60,27 +59,20 @@
                   (char-code x)))
             table))
 
-;;; 
+;;;
 
 (defparameter *char-table*
   #("er" "ed" "an" "te" "re" "e " "ar" " (" "n " "it" "on" "in" "nc" "un" "di"
-    "en" "s " "r " "cr" "d)" "or" "ic" "(u" "ri" "el" "le" "y " " S" " M" "ll"
-    "t " "ra" #\  #\! #\" #\# #\$ #\% #\& #\' #\( #\) #\* #\+ #\, #\- #\. #\/ #\0
-    #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\: #\; #\< #\= #\> #\? #\@ #\A #\B #\C
-    #\D #\E #\F #\G #\H #\I #\J #\K #\L #\M #\N #\O #\P #\Q #\R #\S #\T #\U #\V
-    #\W #\X #\Y #\Z #\[ #\\ #\] #\^ #\_ #\` #\a #\b #\c #\d #\e #\f #\g #\h #\i
-    #\j #\k #\l #\m #\n #\o #\p #\q #\r #\s #\t #\u #\v #\w #\x #\y #\z #\{ #\|
-    #\} #\~ " C" "es" "ne" " B" "at" "Ma" "is" "as" "al" "ce" "li" "he" "l " "ie"
-    "a " "d " "nd" "ch" "st" "ng" "il" "ma" "nt" "to" " G" " P" "rt" " D" "ha"
-    "la" "th" "de" "se" "am" "ro" "ol" "ge" "na" "ti" " H" "et" " A" "ia" " R"
-    "ta" " W" " L" ". " " T" "ve" "om" "ur" "Co" "nn" "ea" "ni" "rd" "us" "hi"
-    "ou" "ck" "me" "ss" "so" " F" "ir" "Pa" "Da" "Ca" "tt" "o " "ot" "Jo" "io"
-    "Ch" "(a" "rs" "St" "ac" "Ro" "im" "oo" "lo" "Ba" "ai" "be" "ke" "rr" "ry"
-    " K" "ee" "h " "Mi" "k " "os" "oi" "g " "ad" "ey" "ho" "id" " J" "ns" "rl"
-    "tr" "sh" "ec" "vi" "Ja" "m " "ay" "Ha" "si" "au" "ld" "Th" "'s" "e)" "sa"
-    " E" "An" "Br" "De" "vo" "Re" "ag" "mi" "Mo"))
+    "en" "s " "r " "cr" "d)" "or" "ic" "ri" "el" "le" "y " " S" " M" "ll"
+    "t " "ra" " C" "es" "ne" " B" "at" "Ma" "is" "as" "al" "ce" "li" "he" "l "
+    "ie" "a " "d " "nd" "ch" "st" "ng" "il" "ma" "nt" "to" " G" " P" "rt" " D"
+    "ha" "la" "th" "de" "se" "am" "ro" "ol" "ge" "na" "ti" " H" "et" " A" "ia"
+    " R" "ta" " W" " L" ". " " T" "ve" "om" "ur" "Co" "nn" "ea" "ni" "rd" "us"
+    "hi" "ou" "ck" "me" "ss" "so" " F" "ir" "Pa" "Da" "Ca" "tt" "o " "ot" "Jo"
+    "io" "Ch" "rs" "St" "ac" "Ro" "im" "oo" "lo" "Ba" "ai" "be" "ke" "rr"
+    "ry" " K" "ee" "h " "Mi" "k " "os" "oi" "g "))
 
-(declaim (type (simple-array fixnum (255)) *decode-char-table*))
+(declaim (type (simple-array fixnum (127)) *decode-char-table*))
 (defparameter *decode-char-table* (make-decode-table *char-table*))
 
 (declaim (type (simple-array fixnum (95 95)) *encode-char-table*))
@@ -88,13 +80,16 @@
 
 (declaim (inline encode-pair))
 (defun encode-pair (a b)
-  (aref *encode-char-table*
-        (relative-ascii-code a)
-        (relative-ascii-code b)))
+  (if (and (typep (char-code a) 'graphic-char-code)
+           (typep (char-code b) 'graphic-char-code))
+      (aref *encode-char-table*
+            (relative-graphic-code a)
+            (relative-graphic-code b))
+      -1))
 
 (declaim (inline decode-pair))
 (defun decode-pair (char)
-  (aref *decode-char-table* char))
+  (aref *decode-char-table* (- char 128)))
 
 (declaim (inline split-pair))
 (defun split-pair (pair)
@@ -102,7 +97,7 @@
 
 (declaim (inline do-pair-encode))
 (defun do-pair-encode (string function)
-  (declare (simple-base-string string))
+  (declare (simple-string string))
   (cond ((= (length string) 0))
         ((= (length string) 1)
          (funcall function (char string 0)))
