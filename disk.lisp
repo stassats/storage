@@ -398,16 +398,11 @@
     (string
      (write-multibyte-string string stream))))
 
-(declaim (notinline read-ascii-string))
-(defun read-ascii-string (length stream)
+(declaim (inline read-compressed-ascii-string))
+#+(and sbcl sb-unicode)
+(defun read-compressed-ascii-string (length stream)
   (let* ((string (make-string length :element-type 'base-char))
          (addr (vector-address string)))
-    ;; #-sbcl
-    ;; (loop for i below length
-    ;;       do (setf (schar string i)
-    ;;                (code-char (read-n-bytes 1 stream))))
-    ;; #+(and sbcl (or x86 x86-64))
-    ;; (read-ascii-string-optimized length string stream)
     (when (plusp length)
       (loop with index fixnum = -1
             do
@@ -420,6 +415,28 @@
                           a))))
             while (< index (1- length))))
     string))
+
+#-(and sbcl sb-unicode)
+(defun read-compressed-ascii-string (length stream)
+  (let ((string (make-string length :element-type 'base-char))
+        (index -1))
+    (declare (fixnum index))
+    (flet ((store-result (a compressed)
+             (if compressed
+                 (multiple-value-bind (b a) (split-pair a)
+                   (setf (char string (incf index)) (code-char a)
+                         (char string (incf index)) (code-char b)))
+                 (setf (char string (incf index))
+                       (code-char a)))))
+      (when (plusp length)
+        (loop do
+              (do-pair-decode (read-n-bytes 1 stream) #'store-result)
+              while (< index (1- length)))))
+    string))
+
+(declaim (notinline read-ascii-string))
+(defun read-ascii-string (length stream)
+  (read-compressed-ascii-string length stream))
 
 (defreader ascii-string (stream)
   (read-ascii-string (read-n-bytes +sequence-length+ stream) stream))
