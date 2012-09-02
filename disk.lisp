@@ -404,16 +404,15 @@
   (let* ((string (make-string length :element-type 'base-char))
          (addr (vector-address string)))
     (when (plusp length)
-      (loop with index fixnum = -1
+      (loop with index fixnum = 0
             do
             (do-pair-decode (read-n-bytes 1 stream)
-              (lambda (a b)
-                (if b
-                    (setf (mem-ref-16 addr (incf index)) a
-                          index (1+ index))
-                    (setf (mem-ref-8 addr (incf index))
-                          a))))
-            while (< index (1- length))))
+              (lambda (pair compressed)
+                (setf (mem-ref-16 addr index) pair)
+                (if compressed
+                    (setf index (+ index 2))
+                    (setf index (+ index 1)))))
+            while (< index length)))
     string))
 
 #-(and sbcl sb-unicode)
@@ -421,13 +420,13 @@
   (let ((string (make-string length :element-type 'base-char))
         (index -1))
     (declare (fixnum index))
-    (flet ((store-result (a compressed)
+    (flet ((store-result (pair compressed)
              (if compressed
-                 (multiple-value-bind (b a) (split-pair a)
+                 (multiple-value-bind (b a) (split-pair pair)
                    (setf (char string (incf index)) (code-char a)
                          (char string (incf index)) (code-char b)))
                  (setf (char string (incf index))
-                       (code-char a)))))
+                       (code-char pair)))))
       (when (plusp length)
         (loop do
               (do-pair-decode (read-n-bytes 1 stream) #'store-result)

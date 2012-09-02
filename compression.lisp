@@ -132,20 +132,19 @@
       (funcall function (decode-pair char) t)))
 
 (defun pair-decode (string)
+  #+sbcl(declare (sb-ext:muffle-conditions sb-ext:compiler-note))
   (let* ((length (+ (length string)
                     (count-if-not #'ascii-char-p string)))
          (new-string (make-string length :element-type 'base-char))
          (new-index -1))
-    (flet ((store-result (a b)
-             (declare (type fixnum a))
-             (if b
-                 (multiple-value-bind (b a) (split-pair a)
-                   (setf (char new-string (incf new-index))
-                         (code-char a)
-                         (char new-string (incf new-index))
-                         (code-char b)))
+    (flet ((store-result (pair compressed)
+             (declare (fixnum pair))
+             (if compressed
+                 (multiple-value-bind (b a) (split-pair pair)
+                   (setf (char new-string (incf new-index)) (code-char a)
+                         (char new-string (incf new-index)) (code-char b)))
                  (setf (char new-string (incf new-index))
-                       (code-char a)))))
+                       (code-char pair)))))
       (declare (inline store-result))
       (loop for char across string
             do (do-pair-decode (char-code char)
