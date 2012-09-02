@@ -56,7 +56,7 @@
               (if (stringp x)
                   (let ((a (char-code (char x 0)))
                         (b (char-code (char x 1))))
-                    (+ b (* a 256)))
+                    (+ a (* b 256)))
                   (char-code x)))
             table))
 
@@ -146,7 +146,7 @@
                (lambda (a b)
                  (declare (type fixnum a))
                  (if b
-                     (multiple-value-bind (a b) (split-pair a)
+                     (multiple-value-bind (b a) (split-pair a)
                        (setf (char new-string (incf new-index))
                              (code-char a)
                              (char new-string (incf new-index))
