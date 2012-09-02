@@ -85,19 +85,19 @@
 (defconstant +ascii-char-limit+ (code-char 128))
 
 (deftype ascii-string ()
-  '(or
+  '(and
     #+sb-unicode simple-base-string ; on #-sb-unicode the limit is 255
     (satisfies ascii-string-p)))
 
-#-sb-unicode
+;#-sb-unicode
 (defun ascii-string-p (string)
   (declare (simple-string string))
   (loop for char across string
-        always (char< char +ascii-char-limit+)))
+        always (ascii-char-p char)))
 
-#+sb-unicode
-(defun ascii-string-p (string)
-  (optimized-ascii-string-p (sb-ext:truly-the simple-string string)))
+;; #+sb-unicode
+;; (defun ascii-string-p (string)
+;;   (optimized-ascii-string-p (sb-ext:truly-the simple-string string)))
 
 (deftype storage-fixnum ()
   `(signed-byte ,(* +fixnum-length+ 8)))
@@ -365,11 +365,14 @@
   (declare (simple-string string))
   (write-n-bytes #.(type-code 'ascii-string) 1 stream)
   (write-n-bytes (length string) +sequence-length+ stream)
-  #-(and sb-unicode (or x86 x86-64))
-  (loop for char across string
-        do (write-n-bytes (char-code char) 1 stream))
-  #+(and sb-unicode (or x86 x86-64))
-  (write-ascii-non-base-string-optimized string stream))
+  ;; #-(and sb-unicode (or x86 x86-64))
+  ;; (loop for char across string
+  ;;       do (write-n-bytes (char-code char) 1 stream))
+  ;; #+(and sb-unicode (or x86 x86-64))
+  ;; (write-ascii-non-base-string-optimized string stream)
+  (do-pair-encode string
+    (lambda (char)
+      (write-n-bytes (char-code char) 1 stream))))
 
 (defun write-multibyte-string (string stream)
   (declare (simple-string string))
@@ -384,26 +387,36 @@
 (defmethod write-object ((string string) stream)
   (etypecase string
     ((not simple-string)
+     
      (call-next-method))
-    #+(and sb-unicode (or x86 x86-64))
-    (simple-base-string
-     (write-n-bytes #.(type-code 'ascii-string) 1 stream)
-     (write-n-bytes (length string) +sequence-length+ stream)
-     (write-ascii-string-optimized string stream))
+    ;; #+(and sb-unicode (or x86 x86-64))
+    ;; (simple-base-string
+    ;;  (write-n-bytes #.(type-code 'ascii-string) 1 stream)
+    ;;  (write-n-bytes (length string) +sequence-length+ stream)
+    ;;  (write-ascii-string-optimized string stream))
     (ascii-string
      (write-ascii-string string stream))
     (string
      (write-multibyte-string string stream))))
 
-(declaim (inline read-ascii-string))
+(declaim (notinline read-ascii-string))
 (defun read-ascii-string (length stream)
   (let ((string (make-string length :element-type 'base-char)))
-    #-sbcl
-    (loop for i below length
-          do (setf (schar string i)
-                   (code-char (read-n-bytes 1 stream))))
-    #+(and sbcl (or x86 x86-64))
-    (read-ascii-string-optimized length string stream)
+    ;; #-sbcl
+    ;; (loop for i below length
+    ;;       do (setf (schar string i)
+    ;;                (code-char (read-n-bytes 1 stream))))
+    ;; #+(and sbcl (or x86 x86-64))
+    ;; (read-ascii-string-optimized length string stream)
+    (when (plusp length)
+      (loop with index = -1
+            do
+            (do-pair-decode (code-char (read-n-bytes 1 stream))
+              (lambda (a b)
+                (setf (char string (incf index)) a)
+                (when b
+                  (setf (char string (incf index)) b))))
+            while (< index (1- length))))
     string))
 
 (defreader ascii-string (stream)

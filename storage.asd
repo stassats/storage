@@ -16,4 +16,5 @@
                (:file "mop")
                (:file "kmp")
                (:file "storage")
+               (:file "compression")
                (:file "disk")))

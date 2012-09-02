@@ -127,8 +127,10 @@
        slot-definitions))
 
 (defun initialize-class-slots (class slots)
-  (let* ((slots-to-store (coerce (remove-if-not #'store-slot-p slots)
-                                 'simple-vector)))
+  (let* ((slots-to-store (sort (coerce (remove-if-not #'store-slot-p slots)
+                                       'simple-vector)
+                               #'string>
+                               :key #'slot-definition-name)))
     (when (> (length slots-to-store) 32)
       (error "Can't have classes with more than 32 storable slots."))
     (setf (slots-to-store class)
