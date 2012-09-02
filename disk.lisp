@@ -409,13 +409,13 @@
     ;; #+(and sbcl (or x86 x86-64))
     ;; (read-ascii-string-optimized length string stream)
     (when (plusp length)
-      (loop with index = -1
+      (loop with index fixnum = -1
             do
             (do-pair-decode (code-char (read-n-bytes 1 stream))
               (lambda (a b)
-                (setf (char string (incf index)) a)
+                (setf (schar string (incf index)) a)
                 (when b
-                  (setf (char string (incf index)) b))))
+                  (setf (schar string (incf index)) b))))
             while (< index (1- length))))
     string))
 
