@@ -38,7 +38,7 @@
 
 (defun make-encode-table (decode-table)
   (let ((array (make-array '(95 95)
-                           :element-type 'fixnum
+                           :element-type '(signed-byte 16)
                            :initial-element -1)))
     (loop for i from 128
           for pair across decode-table
@@ -50,7 +50,8 @@
     array))
 
 (defun make-decode-table (table)
-  (map-into (make-array 127 :element-type 'fixnum)
+  (map-into (make-array 127
+                        :element-type '(unsigned-byte 16))
             (lambda (x)
               (if (stringp x)
                   (let ((a (char-code (char x 0)))
@@ -72,10 +73,10 @@
     "io" "Ch" "rs" "St" "ac" "Ro" "im" "oo" "lo" "Ba" "ai" "be" "ke" "rr"
     "ry" " K" "ee" "h " "Mi" "k " "os" "oi" "g "))
 
-(declaim (type (simple-array fixnum (127)) *decode-char-table*))
+(declaim (type (simple-array (unsigned-byte 16) (127)) *decode-char-table*))
 (defparameter *decode-char-table* (make-decode-table *char-table*))
 
-(declaim (type (simple-array fixnum (95 95)) *encode-char-table*))
+(declaim (type (simple-array (signed-byte 16) (95 95)) *encode-char-table*))
 (defparameter *encode-char-table* (make-encode-table *char-table*))
 
 (declaim (inline encode-pair))
