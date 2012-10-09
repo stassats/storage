@@ -26,7 +26,10 @@
       vector
       array
       hash-table
-      pathname)))
+      pathname
+      fixnum-1
+      fixnum-2
+      fixnum-3)))
 
 (defvar *statistics* ())
 (defun collect-stats (code)
@@ -252,6 +255,21 @@
   (declare (storage-fixnum n))
   (write-n-signed-bytes n +fixnum-length+ stream))
 
+(defun write-fixnum-1 (n stream)
+  (declare (storage-fixnum n))
+  (write-n-bytes #.(type-code 'fixnum-1) 1 stream)
+  (write-n-signed-bytes n 1 stream))
+
+(defun write-fixnum-2 (n stream)
+  (declare (storage-fixnum n))
+  (write-n-bytes #.(type-code 'fixnum-2) 1 stream)
+  (write-n-signed-bytes n 2 stream))
+
+(defun write-fixnum-3 (n stream)
+  (declare (storage-fixnum n))
+  (write-n-bytes #.(type-code 'fixnum-3) 1 stream)
+  (write-n-signed-bytes n 3 stream))
+
 (declaim (inline sign))
 (defun sign (n)
   (if (minusp n)
@@ -272,6 +290,12 @@
 
 (defmethod write-object ((object integer) stream)
   (typecase object
+    ((signed-byte 8)
+     (write-fixnum-1 object stream))
+    ((signed-byte 16)
+     (write-fixnum-2 object stream))
+    ((signed-byte 24)
+     (write-fixnum-3 object stream))
     (storage-fixnum
      (write-n-bytes #.(type-code 'fixnum) 1 stream)
      (write-fixnum object stream))
@@ -298,6 +322,15 @@
 
 (defreader fixnum (stream)
   (read-n-signed-bytes +fixnum-length+ stream))
+
+(defreader fixnum-1 (stream)
+  (read-n-signed-bytes 1 stream))
+
+(defreader fixnum-2 (stream)
+  (read-n-signed-bytes 2 stream))
+
+(defreader fixnum-3 (stream)
+  (read-n-signed-bytes 3 stream))
 
 ;;; Ratio
 

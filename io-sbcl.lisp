@@ -67,6 +67,26 @@
            (fixnum offset))
   (mask-field (byte 24 0) (mem-ref-32 address offset)))
 
+(declaim (inline signed-mem-ref-24))
+(defun signed-mem-ref-24 (address &optional (offset 0))
+  (declare (type word address)
+           (fixnum offset)
+           (sb-ext:muffle-conditions sb-ext:compiler-note)
+           (optimize speed))
+  (let ((byte (mask-field (byte 24 0)
+                          (mem-ref-32 address offset))))
+    (logior byte (- (mask-field (byte 1 23) byte)))))
+
+(declaim (inline (setf signed-mem-ref-24)))
+(defun (setf signed-mem-ref-24) (value address &optional (offset 0))
+  (declare (type (signed-byte 24) value)
+           (type word address)
+           (fixnum offset)
+           (sb-ext:muffle-conditions sb-ext:compiler-note)
+           (optimize speed))
+  (setf (mem-ref-32 address offset)
+        (ldb (byte 24 0) value)))
+
 (declaim (inline n-mem-ref))
 (defun n-mem-ref (n address &optional (offset 0))
   (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
@@ -81,12 +101,14 @@
   (ecase n
     (1 (signed-mem-ref-8 address offset))
     (2 (signed-mem-ref-16 address offset))
+    (3 (signed-mem-ref-24 address offset))
     (4 (signed-mem-ref-32 address offset))))
 
 (defun (setf n-signed-mem-ref) (value n address &optional (offset 0))
   (ecase n
     (1 (setf (signed-mem-ref-8 address offset) value))
     (2 (setf (signed-mem-ref-16 address offset) value))
+    (3 (setf (signed-mem-ref-24 address offset) value))
     (4 (setf (signed-mem-ref-32 address offset) value))))
 
 (declaim (inline vector-address))
