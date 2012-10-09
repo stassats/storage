@@ -157,7 +157,7 @@
 (defun compute-search-key (class)
   (with-slots (search-key) class
     (let* ((key (or search-key
-                    (loop for superclass in (class-direct-superclasses class)
+                    (loop for superclass in (class-precedence-list class)
                           thereis (and (typep superclass 'storable-class)
                                        (search-key superclass)))))
            (slot-name (typecase key
