@@ -31,5 +31,6 @@
    #:slot-unit
    #:storage-file
    #:find-slot
-   #:modified))
+   #:modified
+   #:objects-of-class))
 
