@@ -2,35 +2,6 @@
 
 (in-package #:storage)
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *codes*
-    #(ascii-string
-      identifiable
-      cons
-      string
-      null
-      t
-      fixnum
-      bignum
-      fixnum-ratio
-      ratio
-      double-float
-      single-float
-      complex
-      list-of-objects
-      symbol
-      intern-package-and-symbol
-      intern-symbol
-      character
-      simple-vector
-      vector
-      array
-      hash-table
-      pathname
-      fixnum-1
-      fixnum-2
-      fixnum-3)))
-
 (defvar *statistics* ())
 (defun collect-stats (code)
   (let* ((type (aref *codes* code))
@@ -51,10 +22,6 @@
 (defvar *write-symbols*)
 (declaim (hash-table *write-packages* *write-symbols*))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun type-code (type)
-    (position type *codes*)))
-
 (defparameter *readers* (make-array (length *codes*)))
 (declaim (type (simple-array function (*)) *readers*))
 
@@ -70,40 +37,6 @@
 (defun call-reader (code stream)
   ;; (collect-stats code)
   (funcall (aref *readers* code) stream))
-
-;;;
-
-(defconstant +sequence-length+ 2)
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defconstant +fixnum-length+ 4))
-(defconstant +char-length+ 3)
-(defconstant +id-length+ 3)
-(defconstant +hash-table-length+ 3)
-(defconstant +vector-length+ 4)
-(defconstant +slots-length+ 1)
-
-(defconstant +end+ 255)
-(defconstant +improper-list-end+ 254)
-
-(defconstant +ascii-char-limit+ (code-char 128))
-
-(deftype ascii-string ()
-  '(or
-    #+sb-unicode simple-base-string ; on #-sb-unicode the limit is 255
-    (satisfies ascii-string-p)))
-
-#-sb-unicode
-(defun ascii-string-p (string)
-  (declare (simple-string string))
-  (loop for char across string
-        always (char< char +ascii-char-limit+)))
-
-#+sb-unicode
-(defun ascii-string-p (string)
-  (optimized-ascii-string-p (sb-ext:truly-the simple-string string)))
-
-(deftype storage-fixnum ()
-  `(signed-byte ,(* +fixnum-length+ 8)))
 
 ;;;
 
@@ -398,20 +331,12 @@
   (declare (simple-string string))
   (write-n-bytes #.(type-code 'ascii-string) 1 stream)
   (write-n-bytes (length string) +sequence-length+ stream)
-  #-(and sb-unicode (or x86 x86-64))
-  (loop for char across string
-        do (write-n-bytes (char-code char) 1 stream))
-  #+(and sb-unicode (or x86 x86-64))
   (write-ascii-non-base-string-optimized string stream))
 
 (defun write-multibyte-string (string stream)
   (declare (simple-string string))
   (write-n-bytes #.(type-code 'string) 1 stream)
   (write-n-bytes (length string) +sequence-length+ stream)
-  #-(and sb-unicode (or x86 x86-64))
-  (loop for char across string
-        do (write-n-bytes (char-code char) +char-length+ stream))
-  #+(and sb-unicode (or x86 x86-64))
   (write-multibyte-string-optimized string stream))
 
 (defmethod write-object ((string string) stream)
@@ -428,28 +353,15 @@
     (string
      (write-multibyte-string string stream))))
 
-(declaim (inline read-ascii-string))
-(defun read-ascii-string (length stream)
-  (let ((string (make-string length :element-type 'base-char)))
-    #-sbcl
-    (loop for i below length
-          do (setf (schar string i)
-                   (code-char (read-n-bytes 1 stream))))
-    #+(and sbcl (or x86 x86-64))
+(defreader ascii-string (stream)
+  (let* ((length (read-n-bytes +sequence-length+ stream))
+         (string (make-string length :element-type 'base-char)))
     (read-ascii-string-optimized length string stream)
     string))
-
-(defreader ascii-string (stream)
-  (read-ascii-string (read-n-bytes +sequence-length+ stream) stream))
 
 (defreader string (stream)
   (let* ((length (read-n-bytes +sequence-length+ stream))
          (string (make-string length :element-type 'character)))
-    #-(and sb-unicode (or x86 x86-64))
-    (loop for i below length
-          do (setf (schar string i)
-                   (code-char (read-n-bytes +char-length+ stream))))
-    #+(and sb-unicode (or x86 x86-64))
     (read-multibyte-string-optimized length string stream)
     string))
 
@@ -779,55 +691,6 @@
           do (setf map (ash map -1)))))
 
 ;;;
-
-#+sbcl (declaim (inline fast-allocate-instance))
-#+sbcl
-(defun fast-allocate-instance (wrapper initforms)
-  (declare (simple-vector initforms))
-  (let ((instance (sb-pcl::%make-standard-instance
-                   (copy-seq initforms) (sb-pcl::get-instance-hash-code))))
-    (setf (sb-pcl::std-instance-wrapper instance)
-          wrapper)
-    instance))
-
-#+sbcl
-(defun preallocate-objects (array info)
-  (declare (simple-vector array)
-           (optimize speed))
-  (loop with index = 0
-        for (class . length) in info
-        for initforms = (class-initforms class)
-        for wrapper = (sb-pcl::class-wrapper class)
-        do
-        (setf (objects-of-class class)
-              (loop repeat (the fixnum length)
-                    for instance = (fast-allocate-instance wrapper initforms)
-                    collect instance
-                    do
-                    (setf (aref array index) instance)
-                    (incf index)))))
-
-#-sbcl
-(defun initialize-slots (instance slot-cache)
-  (loop for (location . value) across slot-cache
-        do (setf (standard-instance-access instance location)
-                 value))
-  instance)
-
-#-sbcl
-(defun preallocate-objects (array info)
-  (declare (simple-array array))
-  (loop with index = 0
-        for (class . length) in info
-        for slot-cache = (all-slot-locations-and-initforms class)
-        do
-        (setf (objects-of-class class)
-              (loop repeat length
-                    for instance = (allocate-instance class)
-                    collect instance
-                    do (initialize-slots instance slot-cache)
-                       (setf (aref array index) instance)
-                       (incf index)))))
 
 (defun read-file (file)
   (with-io-file (stream file)

@@ -5,14 +5,22 @@
   :serial t
   :depends-on (alexandria
                closer-mop
-               #-sbcl ieee-floats)
+               #-sbcl
+               ieee-floats)
   :components ((:file "packages")
+               (:file "parameters")
                #+(and sbcl (or x86 x86-64))
                (:file "io-sbcl")
-               #+(and sbcl (or x86 x86-64))
+               #+(and sb-unicode (or x86 x86-64))
                (:file "io-sbcl-strings")
                #-(and sbcl (or x86 x86-64))
                (:file "io-generic")
+               #-(and sb-unicode (or x86 x86-64))
+               (:file "io-generic-strings")
+               #+(and sbcl (or x86 x86-64))
+               (:file "util-sbcl")
+               #-(and sbcl (or x86 x86-64))
+               (:file "util-generic")
                (:file "mop")
                (:file "kmp")
                (:file "storage")

@@ -171,8 +171,7 @@
                                   :memory-char-size 4))
 ;;;
 
-(declaim (inline optimized-ascii-string-p))
-(defun optimized-ascii-string-p (string)
+(defun ascii-string-p (string)
   (declare (simple-string string)
            (optimize speed))
   (let* ((start (vector-address string))
