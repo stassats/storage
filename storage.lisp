@@ -9,11 +9,11 @@
   ((id :accessor id
        :initform nil
        :storep nil
-       :read-only-p t)
+       :read-only t)
    (relations :initform nil
               :accessor relations
               :storep nil
-              :read-only-p t))
+              :read-only t))
   (:metaclass storable-class))
 
 (defgeneric relation (object type))
