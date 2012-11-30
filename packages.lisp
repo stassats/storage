@@ -23,7 +23,7 @@
    #:relation
    #:storage-data
    #:slot-db-type
-   #:slot-read-only-p
+   #:slot-read-only
    #:map-data
    #:search-key
    #:make-kmp-searcher

@@ -66,21 +66,23 @@
     ((class storable-class) (superclass standard-class))
   t)
 
+(defvar *slot-dummy* (gensym))
+
 (defclass storable-slot-mixin ()
   ((storep :initarg :storep
-           :initform t
+           :initform `(,*slot-dummy* t)
            :reader store-slot-p)
    (relation :initarg :relation
-             :initform nil
+             :initform `(,*slot-dummy* nil)
              :reader slot-relation)
    (db-type :initarg :db-type
-            :initform nil
+            :initform `(,*slot-dummy* nil)
             :reader slot-db-type)
-   (read-only-p :initarg :read-only-p
-                :initform nil
-                :reader slot-read-only-p)
+   (read-only :initarg :read-only
+                :initform `(,*slot-dummy* nil)
+                :reader slot-read-only)
    (unit :initarg :unit
-         :initform nil
+         :initform `(,*slot-dummy* nil)
          :reader slot-unit)))
 
 (defclass storable-direct-slot-definition
@@ -97,19 +99,29 @@
 (defmethod effective-slot-definition-class ((class storable-class) &key)
   (find-class 'storable-effective-slot-definition))
 
+(defun compute-slot-option (effective-definition
+                            slot direct-definitions)
+  (let ((value
+          (loop for dd in direct-definitions
+                for value = (slot-value dd slot)
+                unless (and (consp value)
+                            (eq (car value) *slot-dummy*))
+                return value
+                finally
+                (return (cadr (slot-value (car direct-definitions)
+                                          slot))))))
+    (setf (slot-value effective-definition slot)
+          value)))
+
 (defmethod compute-effective-slot-definition
     ((class storable-class) slot-name direct-definitions)
   (declare (ignore slot-name))
-  (let ((effective-definition (call-next-method))
-        (direct-definition (car direct-definitions)))
-    (with-slots (storep relation db-type
-                 read-only-p unit)
-        effective-definition
-      (setf storep (store-slot-p direct-definition)
-            relation (slot-relation direct-definition)
-            db-type (slot-db-type direct-definition)
-            read-only-p (slot-read-only-p direct-definition)
-            unit (slot-unit direct-definition)))
+  (let ((effective-definition (call-next-method)))
+    (loop for slot in '(storep relation db-type read-only unit)
+          do
+          (compute-slot-option effective-definition
+                               slot
+                               direct-definitions)) 
     effective-definition))
 
 (defun slots-with-relations (class)
