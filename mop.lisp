@@ -161,9 +161,12 @@
           (slots-with-relations class))
     (setf (relations-location class)
           (slot-definition-location
-           (or (find-slot 'relations class)
-               (error "Can't find ~s slot in ~s."
-                      'relations class))))
+           (find-slot-or-error 'relations class)))
+    #+(or sbcl ecl ccl)
+    (assert
+     (= (slot-definition-location
+         (find-slot-or-error 'id class))
+        +id-location+))
     (compute-search-key class)))
 
 (defmethod finalize-inheritance :after ((class storable-class))
@@ -172,6 +175,12 @@
 (defun find-slot (slot-name class)
   (find slot-name (class-slots class)
         :key #'slot-definition-name))
+
+(defun find-slot-or-error (slot-name class)
+  (or (find slot-name (class-slots class)
+            :key #'slot-definition-name)
+      (error "Can't find ~s slot in ~s."
+             slot-name class)))
 
 (defun compute-search-key (class)
   (with-slots (search-key) class

@@ -444,7 +444,8 @@
   (write-n-bytes #.(type-code 'list-of-objects) 1 stream)
   (write-n-bytes (length list) +sequence-length+ stream)
   (dolist (object list)
-    (write-n-bytes (id object) +id-length+ stream)))
+    (write-n-bytes (fast-id object)
+                   +id-length+ stream)))
 
 (defreader list-of-objects (stream)
   (loop repeat (read-n-bytes +sequence-length+ stream)
@@ -639,7 +640,7 @@
 
 (defmethod write-object ((object identifiable) stream)
   (write-n-bytes #.(type-code 'identifiable) 1 stream)
-  (write-n-bytes (id object) +id-length+ stream))
+  (write-n-bytes (fast-id object) +id-length+ stream))
 
 (declaim (inline get-instance))
 (defun get-instance (id)
