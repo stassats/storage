@@ -31,6 +31,8 @@
     :accessor number-of-bytes-for-slots)
    (relations :initform nil
               :accessor class-relations)
+   (relations-location :initform nil
+                       :accessor relations-location)
    (initforms :initform nil
               :accessor class-initforms)
    (objects :initform nil
@@ -157,6 +159,11 @@
           (map 'vector #'slot-definition-initform slots))
     (setf (class-relations class)
           (slots-with-relations class))
+    (setf (relations-location class)
+          (slot-definition-location
+           (or (find-slot 'relations class)
+               (error "Can't find ~s slot in ~s."
+                      'relations class))))
     (compute-search-key class)))
 
 (defmethod finalize-inheritance :after ((class storable-class))
