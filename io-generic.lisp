@@ -55,10 +55,57 @@
   (logior (read-4-bytes stream)
           (ash (read-4-bytes stream) 32)))
 
-(declaim (inline write-n-bytes))
+;;;
+
+(define-compiler-macro write-n-bytes (&whole form integer bytes stream)
+  (case bytes
+    (1 `(write-byte ,integer ,stream))
+    (2 `(write-2-bytes ,integer ,stream))
+    (3 `(write-3-bytes ,integer ,stream))
+    (4 `(write-4-bytes ,integer ,stream))
+    (8 `(write-8-bytes ,integer ,stream))
+    (t form)))
+
+(declaim (inline write-n-bytes write-2-bytes write-3-bytes
+                 write-8-bytes))
 (defun write-n-bytes (integer n stream)
-  (loop for low-bit to (* 8 (1- n)) by 8
-        do (write-byte (ldb (byte 8 low-bit) integer) stream)))
+  (ecase n
+    (1 (write-byte integer stream))
+    (2 (write-2-bytes integer stream))
+    (3 (write-3-bytes integer stream))
+    (4 (write-4-bytes integer stream))
+    (8 (write-8-bytes integer stream))))
+
+(defun write-2-bytes (integer stream)
+  (declare (type (unsigned-byte 16) integer))
+  (write-byte (ldb (byte 8 0) integer) stream)
+  (write-byte (ldb (byte 8 8) integer) stream))
+
+(defun write-3-bytes (integer stream)
+  (declare (type (unsigned-byte 24) integer))
+  (write-byte (ldb (byte 8 0) integer) stream)
+  (write-byte (ldb (byte 8 8) integer) stream)
+  (write-byte (ldb (byte 8 16) integer) stream))
+
+(defun write-4-bytes (integer stream)
+  (declare (type (unsigned-byte 32) integer))
+  (write-byte (ldb (byte 8 0) integer) stream)
+  (write-byte (ldb (byte 8 8) integer) stream)
+  (write-byte (ldb (byte 8 16) integer) stream)
+  (write-byte (ldb (byte 8 24) integer) stream))
+
+(defun write-8-bytes (integer stream)
+  (declare (type (unsigned-byte 64) integer))
+  (write-byte (ldb (byte 8 0) integer) stream)
+  (write-byte (ldb (byte 8 8) integer) stream)
+  (write-byte (ldb (byte 8 16) integer) stream)
+  (write-byte (ldb (byte 8 24) integer) stream)
+  (write-byte (ldb (byte 8 32) integer) stream)
+  (write-byte (ldb (byte 8 40) integer) stream)
+  (write-byte (ldb (byte 8 48) integer) stream)
+  (write-byte (ldb (byte 8 56) integer) stream))
+
+;;;
 
 (declaim (inline write-n-signed-bytes))
 (defun write-n-signed-bytes (integer n stream)
