@@ -154,20 +154,41 @@
                (slot-definition-initform slot-definition)))
        slot-definitions))
 
-(defconstant +id-location+ 0)
-(defconstant +relations-location+ 1)
+(defvar *id-location* nil)
+(defvar *relations-location* nil)
 
 (declaim (inline fast-id))
 (defun fast-id (object)
-  (standard-instance-access object +id-location+))
+  (standard-instance-access object *id-location*))
 
 (declaim (inline fast-relations (setf fast-relations)))
 (defun fast-relations (object)
-  (standard-instance-access object +relations-location+))
+  (standard-instance-access object *relations-location*))
 
 (defun (setf fast-relations) (value object)
-  (setf (standard-instance-access object +relations-location+)
+  (setf (standard-instance-access object *relations-location*)
         value))
+
+(defun assign-locations (class)
+  (let ((id (slot-definition-location
+             (find-slot-or-error 'id class)))
+        (relations
+          (slot-definition-location
+           (find-slot-or-error 'relations class))))
+    (check-type id (integer 0))
+    (check-type relations (integer 0))
+    (if *id-location*
+        (assert (= *id-location* id)
+                ()
+                "Slot location of ~s on ~s is ~s, other classes have ~s."
+                'id class id *id-location*)
+        (setf *id-location* id))
+    (if *relations-location*
+        (assert (= *relations-location* relations)
+                ()
+                "Slot location of ~s on ~s is ~s, other classes have ~s."
+                'relations class relations *relations-location*)
+        (setf *relations-location* relations))))
 
 (defun initialize-class-slots (class slots)
   (let* ((slots-to-store (coerce (remove-if-not #'store-slot-p slots)
@@ -189,14 +210,7 @@
     (setf (class-relations class)
           (slots-with-relations class))
     (compute-search-key class)
-    (assert
-     (= (slot-definition-location
-         (find-slot-or-error 'id class))
-        +id-location+))
-    (assert
-     (= (slot-definition-location
-         (find-slot-or-error 'relations class))
-        +relations-location+))))
+    (assign-locations class)))
 
 (defmethod finalize-inheritance :after ((class storable-class))
   (initialize-class-slots class (class-slots class)))
