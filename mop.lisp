@@ -31,8 +31,6 @@
     :accessor number-of-bytes-for-slots)
    (relations :initform nil
               :accessor class-relations)
-   (relations-location :initform nil
-                       :accessor relations-location)
    (initforms :initform nil
               :accessor class-initforms)
    (objects :initform nil
@@ -126,6 +124,22 @@
                                direct-definitions)) 
     effective-definition))
 
+(defmethod compute-slots ((class storable-class))
+  (let* ((slots (call-next-method))
+         (other-slots (remove-if (lambda (x)
+                                   (or (eq x 'id)
+                                       (eq x 'relations)))
+                                 slots
+                                 :key #'slot-definition-name)))
+    (list* (or (find 'id slots :key #'slot-definition-name)
+               (error "No ~s slot in ~s" 'id class))
+           (or (find 'relations slots :key #'slot-definition-name)
+               (error "No ~s slot in ~s" 'relations class))
+           (stable-sort (copy-list other-slots)
+                        (lambda (x y)
+                          (and y (not x)))
+                        :key #'store-slot-p))))
+
 (defun slots-with-relations (class)
   (loop for slot across (slots-to-store class)
         for relation = (slot-relation slot)
@@ -139,6 +153,21 @@
          (cons (slot-definition-location slot-definition)
                (slot-definition-initform slot-definition)))
        slot-definitions))
+
+(defconstant +id-location+ 0)
+(defconstant +relations-location+ 1)
+
+(declaim (inline fast-id))
+(defun fast-id (object)
+  (standard-instance-access object +id-location+))
+
+(declaim (inline fast-relations (setf fast-relations)))
+(defun fast-relations (object)
+  (standard-instance-access object +relations-location+))
+
+(defun (setf fast-relations) (value object)
+  (setf (standard-instance-access object +relations-location+)
+        value))
 
 (defun initialize-class-slots (class slots)
   (let* ((slots-to-store (coerce (remove-if-not #'store-slot-p slots)
@@ -159,15 +188,15 @@
           (map 'vector #'slot-definition-initform slots))
     (setf (class-relations class)
           (slots-with-relations class))
-    (setf (relations-location class)
-          (slot-definition-location
-           (find-slot-or-error 'relations class)))
-    #+(or sbcl ecl ccl)
+    (compute-search-key class)
     (assert
      (= (slot-definition-location
          (find-slot-or-error 'id class))
         +id-location+))
-    (compute-search-key class)))
+    (assert
+     (= (slot-definition-location
+         (find-slot-or-error 'relations class))
+        +relations-location+))))
 
 (defmethod finalize-inheritance :after ((class storable-class))
   (initialize-class-slots class (class-slots class)))

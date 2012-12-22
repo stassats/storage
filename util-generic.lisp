@@ -19,15 +19,3 @@
                     do (initialize-slots instance slot-cache)
                        (setf (aref array index) instance)
                        (incf index)))))
-
-(defconstant +id-location+ 0)
-
-(declaim (inline fast-id))
-
-#+(or ccl ecl)
-(defun fast-id (object)
-  (standard-instance-access object +id-location+))
-
-#-(or ccl ecl)
-(defun fast-id (object)
-  (id object))

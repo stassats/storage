@@ -125,10 +125,8 @@
    (lambda (class objects)
      (let ((relations (class-relations class)))
        (when relations
-         (loop with relations-slot-loc = (relations-location class)
-               for object in objects
-               do (interlink-objects-first-time object relations
-                                                relations-slot-loc)))))))
+         (loop for object in objects
+               do (interlink-objects-first-time object relations)))))))
 
 (declaim (inline prepend))
 (defun prepend (item list)
@@ -141,10 +139,8 @@
         when (eq key indicator) return value))
 
 (declaim (inline set-relations))
-(defun set-relations (relation object target-object
-                      relations-slot-loc)
-  (let* ((relations (standard-instance-access target-object
-                                              relations-slot-loc))
+(defun set-relations (relation object target-object)
+  (let* ((relations (fast-relations target-object))
          (list (fgetf relations relation)))
     (cond (list
            (prepend object list))
@@ -152,32 +148,25 @@
            (prepend (list object) relations)
            (prepend relation relations))
           (t
-           (setf (standard-instance-access target-object
-                                           relations-slot-loc)
+           (setf (fast-relations target-object)
                  (list* relation (list object) relations))))))
 
-(defun link-slot-first-time (relation object target-object
-                             relations-slot-loc)
+(defun link-slot-first-time (relation object target-object)
   (if (and (consp relation)
            (eql (car relation) :slot))
       (push object (slot-value target-object (cadr relation)))
-      (set-relations relation object target-object
-                     relations-slot-loc)))
+      (set-relations relation object target-object)))
 
-(defun interlink-slots-first-time (object slot-value relation
-                                   relations-slot-loc)
+(defun interlink-slots-first-time (object slot-value relation)
   (do-maybe-list (target slot-value)
-    (link-slot-first-time relation object target
-                          relations-slot-loc)))
+    (link-slot-first-time relation object target)))
 
-(defun interlink-objects-first-time (object relations
-                                     relations-slot-loc)
+(defun interlink-objects-first-time (object relations)
   (loop for (loc . relation) in relations
         do
         (interlink-slots-first-time object
                                     (standard-instance-access object loc)
-                                    relation
-                                    relations-slot-loc)))
+                                    relation)))
 
 ;;; Data manipulations
 

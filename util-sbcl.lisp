@@ -24,9 +24,3 @@
                     do
                     (setf (aref array index) instance)
                     (incf index)))))
-
-(defconstant +id-location+ 0)
-
-(declaim (inline fast-id))
-(defun fast-id (object)
-  (standard-instance-access object +id-location+))

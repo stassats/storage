@@ -4,7 +4,7 @@
   :name "storage"
   :serial t
   :depends-on (alexandria
-               closer-mop
+               #-abcl closer-mop
                #-sbcl
                ieee-floats)
   :components ((:file "packages")
