@@ -24,4 +24,5 @@
                (:file "mop")
                (:file "kmp")
                (:file "storage")
+               (:file "query")
                (:file "disk")))
