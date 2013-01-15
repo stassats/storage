@@ -437,7 +437,7 @@
 
 (defun list-of-objects-p (list)
   (loop for cdr = list then (cdr cdr)
-        until (null cdr)
+        while cdr
         always (and (consp cdr) (typep (car cdr) 'standard-object))))
 
 (defun write-list-of-objects (list stream)

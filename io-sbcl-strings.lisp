@@ -22,30 +22,9 @@
                   (mem-ref-word string-index))
             (setf (mem-ref-word string-index)
                   (if (< buffer-char-size memory-char-size)
-                      (n-mem-ref buffer-char-size buffer-index)
+                      (n-mem-ref (truly-the (integer 1 4) buffer-char-size)
+                                 buffer-index)
                       (mem-ref-word buffer-index))))))
-
-(defun write-string-boundary (length string stream
-                              position buffer-char-size memory-char-size)
-  (let* ((end (output-stream-buffer-end stream))
-         (space-in-buffer (- end position)))
-    (multiple-value-bind (quot rem)
-        (floor space-in-buffer buffer-char-size)
-      (let* ((start (output-stream-buffer-start stream))
-             (new-position (+ start (- length (- space-in-buffer rem))))
-             (adjusted-end (- end rem)))
-        (copy-string string position adjusted-end
-                     :buffer-char-size buffer-char-size
-                     :memory-char-size memory-char-size
-                     :from-memory t)
-        (flush-output-buffer stream (- adjusted-end start))
-        (copy-string (+ string (* quot memory-char-size))
-                     start new-position
-                     :buffer-char-size buffer-char-size
-                     :memory-char-size memory-char-size
-                     :from-memory t)
-        (setf (output-stream-buffer-position stream)
-              new-position)))))
 
 (declaim (inline write-optimized-string-generic))
 (defun write-optimized-string-generic (string stream
@@ -57,54 +36,63 @@
   (sb-sys:with-pinned-objects (string)
     (let* ((length (* (length string) buffer-char-size))
            (position (output-stream-buffer-position stream))
-           (string (vector-address string))
+           (string-address (vector-address string))
            (new-position (truly-the word (+ position length))))
       (declare (type word position new-position))
-      (cond ((<= new-position (output-stream-buffer-end stream))
-             (copy-string string position new-position
+      (cond ((> length +buffer-size+)
+             (error "Strings of more than ~a are not supported yet."
+                    +buffer-size+))
+            (t
+             (copy-string string-address position new-position
                           :buffer-char-size buffer-char-size
                           :memory-char-size memory-char-size
                           :from-memory t)
-             (setf (output-stream-buffer-position stream)
-                   new-position))
-            ((<= length +buffer-size+)
-             (write-string-boundary length string stream
-                                    position buffer-char-size memory-char-size))
-            (t
-             (error "Strings of more than ~a are not supported yet."
-                    +buffer-size+)))))
+             (cond ((<= new-position (output-stream-buffer-end stream))
+                    (setf (output-stream-buffer-position stream)
+                          new-position))
+                   (t
+                    (flush-output-buffer stream
+                                         (truly-the
+                                          buffer-length
+                                          (- new-position
+                                             (output-stream-buffer-start
+                                              stream))))
+                    (setf (output-stream-buffer-position stream)
+                          (output-stream-buffer-start stream))))))))
   string)
 
 ;;; reading
 
-(defun read-string-boundary (length string stream position
+(defun read-string-boundary (length string stream
                              buffer-char-size memory-char-size)
-  (let ((left (- (input-stream-buffer-end stream) position)))
+  (let* ((position (input-stream-buffer-position stream))
+         (left (- (input-stream-buffer-end stream) position)))
     (multiple-value-bind (quot rem) (floor left buffer-char-size)
       (let* ((start (input-stream-buffer-start stream))
              (end (input-stream-buffer-end stream))
+             (string-address (vector-address string))
              (left (- left rem))
              (left-bytes (- buffer-char-size rem))
              (left-length (- length left)))
         (when (> left-length (input-stream-left stream))
           (error "End of file ~a" stream))
-        (copy-string string position (+ position left)
+        (copy-string string-address position (+ position left)
                      :buffer-char-size buffer-char-size
                      :memory-char-size memory-char-size)
-        (incf string (* quot memory-char-size))
+        (incf string-address (* quot memory-char-size))
         (cond
           ((> rem 0)
            (let ((left-char (n-mem-ref rem (- end rem))))
              (decf left-length 3)
              (fill-input-buffer stream 0)
-             (setf (mem-ref-32 string)
+             (setf (mem-ref-32 string-address)
                    (logior left-char
                            (ash (n-mem-ref left-bytes start) (* rem 8))))
              (setf start (+ start left-bytes))
-             (incf string memory-char-size)))
+             (incf string-address memory-char-size)))
           (t
            (fill-input-buffer stream 0)))
-        (copy-string string start (+ start left-length)
+        (copy-string string-address start (+ start left-length)
                      :buffer-char-size buffer-char-size
                      :memory-char-size memory-char-size)
         (setf (input-stream-buffer-position stream) (+ start left-length))))))
@@ -115,21 +103,22 @@
                                            (memory-char-size 1))
   (declare (type sb-int:index length)
            (type (integer 1 4) buffer-char-size memory-char-size)
-           (sb-ext:muffle-conditions sb-ext:compiler-note))
+           ;; (sb-ext:muffle-conditions sb-ext:compiler-note)
+           (optimize speed))
   (sb-sys:with-pinned-objects (string)
     (let* ((position (input-stream-buffer-position stream))
            (length (* length buffer-char-size))
-           (string (vector-address string))
+           (string-address (vector-address string))
            (new-position (truly-the word (+ position length))))
       (declare (type word position new-position))
       (cond ((<= new-position (input-stream-buffer-end stream))
-             (copy-string string position new-position
+             (copy-string string-address position new-position
                           :buffer-char-size buffer-char-size
                           :memory-char-size memory-char-size)
              (setf (input-stream-buffer-position stream)
                    new-position))
             ((<= length +buffer-size+)
-             (read-string-boundary length string stream position
+             (read-string-boundary length string stream
                                    buffer-char-size memory-char-size))
             (t
              (error "Strings of more than ~a are not supported yet."

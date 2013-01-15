@@ -8,7 +8,7 @@
 (defconstant +buffer-size+ 8192)
 
 (deftype buffer-length ()
-  '(integer 0 #.+buffer-size+))
+  '(integer 0 #.(* +buffer-size+ 2)))
 
 (deftype word () 'sb-vm:word)
 
@@ -122,12 +122,15 @@
 
 ;;;
 
-(defun allocate-buffer ()
+(defun allocate-buffer (&optional twice)
   (sb-sys:sap-int
    (sb-alien:alien-sap
     (sb-alien:make-alien char
-                         ;; alignment
                          (+ +buffer-size+
+                            (if twice
+                                +buffer-size+
+                                0)
+                            ;; alignment
                             8)))))
 
 (defstruct (input-stream
@@ -142,7 +145,7 @@
 (defstruct (output-stream
             (:predicate nil))
   (fd nil :type word)
-  (buffer-start (allocate-buffer)
+  (buffer-start (allocate-buffer t)
                 :type word)
   (buffer-end 0 :type word)
   (buffer-position 0 :type word))
