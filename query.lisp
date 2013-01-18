@@ -22,8 +22,10 @@
                           `(equalp ,value ,slot))))
                      slots values)))))))
 
-(define-compiler-macro where (&whole form &rest clauses)
-  (if (every #'constantp clauses)
+(define-compiler-macro where (&whole form &rest clauses
+                                     &environment env)
+  (if (loop for clause in clauses
+            always (constantp clauses env))
       `(load-time-value (where-compile ,@clauses))
       form))
 
