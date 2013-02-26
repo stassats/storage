@@ -4,9 +4,8 @@
   :name "storage"
   :serial t
   :depends-on (alexandria
-               #-abcl closer-mop
-               #-sbcl
-               ieee-floats)
+               closer-mop
+               #-sbcl ieee-floats)
   :components ((:file "packages")
                (:file "parameters")
                #+(and sbcl (or x86 x86-64))
