@@ -80,13 +80,6 @@
 
 ;;;
 
-(defun interlink-all-objects ()
-  (map-data
-   (lambda (class objects)
-     (declare (ignore class))
-     (loop for object in objects
-           do (interlink-objects object)))))
-
 (defmacro do-maybe-list ((var maybe-list) &body body)
   (let ((function-name (gensym))
         (list-name (gensym)))
