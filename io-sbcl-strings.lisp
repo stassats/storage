@@ -65,6 +65,7 @@
 
 (defun read-string-boundary (length string stream
                              buffer-char-size memory-char-size)
+  (declare (simple-string string))
   (let* ((position (input-stream-buffer-position stream))
          (left (- (input-stream-buffer-end stream) position)))
     (multiple-value-bind (quot rem) (floor left buffer-char-size)
