@@ -710,12 +710,19 @@
                     (read-standard-object instance slots bytes-for-slots
                                           stream)))))))
 
+(defun db-changed-after-load-p (storage)
+  (> (file-write-date (storage-file storage))
+     (load-time storage)))
+
 (defun load-data (storage &optional file)
-  (let ((*storage* storage))
+  (let ((*storage* storage)
+        (time (get-universal-time)))
     (with-reading-packages
       (read-file (or file (storage-file *storage*))))
     (interlink-all-objects-first-time)
-    (setf (modified storage) nil)))
+    (setf (modified storage) nil
+          (load-time storage) time)
+    t))
 
 (defun save-data (storage &optional file)
   (let ((*storage* storage))
@@ -724,4 +731,6 @@
         (with-io-file (stream (or file (storage-file storage))
                        :direction :output)
           (dump-data stream)))
-      (setf (modified storage) nil))))
+      (setf (modified storage) nil
+            (load-time storage) (get-universal-time))
+      t)))

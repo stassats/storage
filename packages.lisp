@@ -32,5 +32,7 @@
    #:storage-file
    #:find-slot
    #:modified
-   #:objects-of-class))
+   #:objects-of-class
+   #:load-time
+   #:db-changed-after-load-p))
 

@@ -12,7 +12,10 @@
          :accessor storage-data)
    (file :initarg :file
          :initform nil
-         :accessor storage-file)))
+         :accessor storage-file)
+   (load-time :initarg :load-time
+              :initform nil
+              :accessor load-time)))
 
 (defclass storable-class (standard-class)
   ((slots-to-store :initform nil

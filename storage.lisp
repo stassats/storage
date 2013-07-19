@@ -172,4 +172,3 @@
   (store-object object)
   (interlink-objects object)
   object)
-
