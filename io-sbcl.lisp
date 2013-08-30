@@ -168,14 +168,14 @@
 (defun close-input-stream (stream)
   (sb-alien:alien-funcall
    (sb-alien:extern-alien "free"
-                          (function (values) sb-alien:long))
+                          (function (values) sb-alien:unsigned-long))
    (input-stream-buffer-start stream)))
 
 (defun close-output-stream (stream)
   (flush-output-buffer stream)
   (sb-alien:alien-funcall
    (sb-alien:extern-alien "free"
-                          (function (values) sb-alien:long))
+                          (function (values) sb-alien:unsigned-long))
    (output-stream-buffer-start stream)))
 
 (declaim (inline stream-end-of-file-p))
@@ -190,7 +190,8 @@
   (sb-alien:alien-funcall
    (sb-alien:extern-alien "read"
                           (function sb-alien:int
-                                    sb-alien:int sb-alien:long sb-alien:int))
+                                    sb-alien:int sb-alien:unsigned-long
+                                    sb-alien:int))
    fd buf len))
 
 (declaim (inline unix-write))
@@ -199,7 +200,8 @@
   (sb-alien:alien-funcall
    (sb-alien:extern-alien "write"
                           (function sb-alien:int
-                                    sb-alien:int sb-alien:long sb-alien:int))
+                                    sb-alien:int sb-alien:unsigned-long
+                                    sb-alien:int))
    fd buf len))
 
 (defun fill-input-buffer (stream offset)
