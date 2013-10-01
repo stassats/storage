@@ -715,10 +715,12 @@
      (load-time storage)))
 
 (defun load-data (storage &optional file)
-  (let ((*storage* storage)
-        (time (get-universal-time)))
+  (let* ((*storage* storage)
+         (file (or file (storage-file *storage*)))
+         (time (or (file-write-date file)
+                   (get-universal-time))))
     (with-reading-packages
-      (read-file (or file (storage-file *storage*))))
+      (read-file file))
     (interlink-all-objects-first-time)
     (setf (modified storage) nil
           (load-time storage) time)
