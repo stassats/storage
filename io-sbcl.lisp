@@ -12,6 +12,10 @@
 
 (deftype word () 'sb-vm:word)
 
+(declaim (ftype (function * (values * &optional))
+                fill-input-buffer refill-input-buffer
+                flush-output-buffer))
+
 ;;; sap wrappers
 
 (defmacro define-sap-ref-wrapper (bits &key name signed)
@@ -172,7 +176,7 @@
    (input-stream-buffer-start stream)))
 
 (defun close-output-stream (stream)
-  (flush-output-buffer stream)
+  (flush-output-buffer stream 0)
   (sb-alien:alien-funcall
    (sb-alien:extern-alien "free"
                           (function (values) sb-alien:unsigned-long))
@@ -271,12 +275,15 @@
   (setf (n-signed-mem-ref n (advance-output-stream n stream)) value)
   t)
 
-(defun flush-output-buffer (stream &optional count)
+(defun flush-output-buffer (stream n &optional count)
   (unix-write (output-stream-fd stream)
               (output-stream-buffer-start stream)
               (or count
                   (- (output-stream-buffer-position stream)
-                     (output-stream-buffer-start stream)))))
+                     (output-stream-buffer-start stream))))
+  (setf (output-stream-buffer-position stream)
+        (truly-the word (+ n (output-stream-buffer-start stream))))
+  t)
 
 (declaim (inline advance-output-stream))
 (defun advance-output-stream (n stream)
@@ -287,9 +294,7 @@
          (new-sap (truly-the word (+ sap n))))
     (declare (word sap new-sap))
     (cond ((> new-sap (output-stream-buffer-end stream))
-           (flush-output-buffer stream)
-           (setf (output-stream-buffer-position stream)
-                 (truly-the word (+ n (output-stream-buffer-start stream))))
+           (flush-output-buffer stream n)
            (output-stream-buffer-start stream))
           (t
            (setf (output-stream-buffer-position stream)

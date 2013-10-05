@@ -52,17 +52,18 @@
                           new-position))
                    (t
                     (flush-output-buffer stream
+                                         0
                                          (truly-the
                                           buffer-length
                                           (- new-position
                                              (output-stream-buffer-start
-                                              stream))))
-                    (setf (output-stream-buffer-position stream)
-                          (output-stream-buffer-start stream))))))))
+                                              stream))))))))))
   string)
 
 ;;; reading
 
+(declaim (ftype (function * (values * &optional))
+                 read-string-boundary))
 (defun read-string-boundary (length string stream
                              buffer-char-size memory-char-size)
   (declare (simple-string string)
