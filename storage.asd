@@ -5,7 +5,9 @@
   :serial t
   :depends-on (alexandria
                closer-mop
-               #-sbcl ieee-floats)
+               #-sbcl ieee-floats
+               #+(and sbcl (or x86 x86-64))
+               sb-posix)
   :components ((:file "packages")
                (:file "parameters")
                #+(and sbcl (or x86 x86-64))

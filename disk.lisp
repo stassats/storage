@@ -723,7 +723,8 @@
       (read-file file))
     (interlink-all-objects-first-time)
     (setf (modified storage) nil
-          (load-time storage) time)
+          (load-time storage) time
+          (sentinel storage) (list t))
     t))
 
 (defun save-data (storage &optional file)

@@ -34,5 +34,6 @@
    #:modified
    #:objects-of-class
    #:load-time
-   #:db-changed-after-load-p))
+   #:db-changed-after-load-p
+   #:sentinel))
 
