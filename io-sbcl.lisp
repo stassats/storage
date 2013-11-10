@@ -138,27 +138,35 @@
                             8)))))
 
 (defstruct (input-stream
-            (:predicate nil))
-  (fd nil :type word)
+            (:predicate nil)
+            (:copier nil)
+            (:constructor make-input-stream (fd left)))
+  (fd nil :type word :read-only t)
   (left 0 :type word)
   (buffer-start (allocate-buffer)
-   :type word)
+   :type word
+   :read-only t)
   (buffer-end 0 :type word)
   (buffer-position 0 :type word))
 
 (defstruct (output-stream
-            (:predicate nil))
-  (fd nil :type word)
+            (:predicate nil)
+            (:copier nil)
+            (:constructor make-output-stream (fd)))
+  (fd nil :type word :read-only t)
   (buffer-start (allocate-buffer t)
-                :type word)
+   :type word
+   :read-only t)
   (buffer-end 0 :type word)
   (buffer-position 0 :type word))
+
+(declaim (sb-ext:freeze-type input-stream output-stream))
 
 (defun open-file (file-stream
                   &key direction)
   (if (eql direction :output)
       (let ((output (make-output-stream
-                     :fd (sb-sys:fd-stream-fd file-stream))))
+                     (sb-sys:fd-stream-fd file-stream))))
         (setf (output-stream-buffer-position output)
               (output-stream-buffer-start output)
               (output-stream-buffer-end output)
@@ -166,8 +174,8 @@
                  +buffer-size+))
         output)
       (make-input-stream
-       :fd (sb-sys:fd-stream-fd file-stream)
-       :left (file-length file-stream))))
+       (sb-sys:fd-stream-fd file-stream)
+       (file-length file-stream))))
 
 (defun close-input-stream (stream)
   (sb-alien:alien-funcall
