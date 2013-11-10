@@ -359,6 +359,7 @@
            ,@(ecase direction
                (:output
                 `((close-output-stream ,stream)
+                  #-windows
                   (sb-posix:fdatasync
                    (sb-sys:fd-stream-fd ,fd-stream))))
                (:input
