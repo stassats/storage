@@ -200,7 +200,8 @@
 (defun unix-read (fd buf len)
   (declare (type word fd len))
   (sb-alien:alien-funcall
-   (sb-alien:extern-alien "read"
+   (sb-alien:extern-alien #-win32 "read"
+                          #+win32 "win32_unix_read"
                           (function sb-alien:int
                                     sb-alien:int sb-alien:unsigned-long
                                     sb-alien:int))
@@ -210,7 +211,8 @@
 (defun unix-write (fd buf len)
   (declare (type word fd len))
   (sb-alien:alien-funcall
-   (sb-alien:extern-alien "write"
+   (sb-alien:extern-alien #-win32 "write"
+                          #+win32 "win32_unix_write"
                           (function sb-alien:int
                                     sb-alien:int sb-alien:unsigned-long
                                     sb-alien:int))
@@ -341,6 +343,12 @@
   t)
 
 ;;;
+#+win32
+(defun flush-file-buffers (fd)
+  (sb-alien:alien-funcall
+   (sb-alien:extern-alien "FlushFileBuffers"
+                          (function (boolean) sb-alien:unsigned-long))
+   fd))
 
 (defmacro with-io-file ((stream file
                          &key append (direction :input))
@@ -359,8 +367,11 @@
            ,@(ecase direction
                (:output
                 `((close-output-stream ,stream)
-                  #-windows
+                  #-win32
                   (sb-posix:fdatasync
+                   (sb-sys:fd-stream-fd ,fd-stream))
+                  #+win32
+                  (flush-file-buffers
                    (sb-sys:fd-stream-fd ,fd-stream))))
                (:input
                 `((close-input-stream ,stream)))))))))
