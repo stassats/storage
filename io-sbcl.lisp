@@ -183,8 +183,9 @@
                           (function (values) sb-alien:unsigned-long))
    (input-stream-buffer-start stream)))
 
-(defun close-output-stream (stream)
-  (flush-output-buffer stream 0)
+(defun close-output-stream (stream &optional error-occured)
+  (unless error-occured
+    (flush-output-buffer stream 0))
   (sb-alien:alien-funcall
    (sb-alien:extern-alien "free"
                           (function (values) sb-alien:unsigned-long))
@@ -199,24 +200,45 @@
 (declaim (inline unix-read))
 (defun unix-read (fd buf len)
   (declare (type word fd len))
-  (sb-alien:alien-funcall
-   (sb-alien:extern-alien #-win32 "read"
-                          #+win32 "win32_unix_read"
-                          (function sb-alien:int
-                                    sb-alien:int sb-alien:unsigned-long
-                                    sb-alien:int))
-   fd buf len))
+  (let ((result (sb-alien:alien-funcall
+                 (sb-alien:extern-alien #-win32 "read"
+                                        #+win32 "win32_unix_read"
+                                        (function sb-alien:int
+                                                  sb-alien:int sb-alien:unsigned-long
+                                                  sb-alien:int))
+                 fd buf len)))
+    (if (minusp result)
+        (sb-posix:syscall-error 'read)
+        result)))
 
 (declaim (inline unix-write))
 (defun unix-write (fd buf len)
   (declare (type word fd len))
-  (sb-alien:alien-funcall
-   (sb-alien:extern-alien #-win32 "write"
-                          #+win32 "win32_unix_write"
-                          (function sb-alien:int
-                                    sb-alien:int sb-alien:unsigned-long
-                                    sb-alien:int))
-   fd buf len))
+  (block nil
+    (tagbody
+     retry
+       (let ((result (sb-alien:alien-funcall
+                      (sb-alien:extern-alien #-win32 "write"
+                                             #+win32 "win32_unix_write"
+                                             (function sb-alien:int
+                                                       sb-alien:int sb-alien:unsigned-long
+                                                       sb-alien:int))
+                      fd buf len)))
+         (if (= result -1)
+             (let ((errno (sb-alien:get-errno)))
+               (if (= errno sb-posix:eintr)
+                   (go retry)
+                   (error 'sb-posix:syscall-error
+                          :name 'write
+                          :errno errno)))
+             (return result))))))
+
+(defun write-buffer (fd buf len)
+  (loop for written = (unix-write fd buf len)
+        until (= written len)
+        do
+        (decf len written)
+        (incf buf len)))
 
 (defun fill-input-buffer (stream offset)
   (let ((length (unix-read (input-stream-fd stream)
@@ -286,11 +308,11 @@
   t)
 
 (defun flush-output-buffer (stream n &optional count)
-  (unix-write (output-stream-fd stream)
-              (output-stream-buffer-start stream)
-              (or count
-                  (- (output-stream-buffer-position stream)
-                     (output-stream-buffer-start stream))))
+  (write-buffer (output-stream-fd stream)
+                (output-stream-buffer-start stream)
+                (or count
+                    (- (output-stream-buffer-position stream)
+                       (output-stream-buffer-start stream))))
   (setf (output-stream-buffer-position stream)
         (truly-the word (+ n (output-stream-buffer-start stream))))
   t)
@@ -353,7 +375,8 @@
 (defmacro with-io-file ((stream file
                          &key append (direction :input))
                         &body body)
-  (let ((fd-stream (gensym)))
+  (let ((fd-stream (gensym "FD-STREAM"))
+        (error-occured (gensym "ERROR-OCCURED")))
     `(with-open-file (,fd-stream ,file
                                  :element-type '(unsigned-byte 8)
                                  :direction ,direction
@@ -361,12 +384,14 @@
                                         `(:if-exists ,(if append
                                                           :append
                                                           :supersede))))
-       (let ((,stream (open-file ,fd-stream :direction ,direction)))
+       (let ((,stream (open-file ,fd-stream :direction ,direction))
+             (,error-occured t))
          (unwind-protect
-              (progn ,@body)
+              (progn ,@body
+                     (setf ,error-occured nil))
            ,@(ecase direction
                (:output
-                `((close-output-stream ,stream)
+                `((close-output-stream ,stream ,error-occured)
                   #-win32
                   (sb-posix:fdatasync
                    (sb-sys:fd-stream-fd ,fd-stream))
