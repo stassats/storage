@@ -6,12 +6,12 @@
   :depends-on (alexandria
                closer-mop
                #-sbcl ieee-floats
-               #+(and sbcl (or x86 x86-64)
+               #+(and sbcl (or x86 x86-64 arm)
                       (not win32))
                sb-posix)
   :components ((:file "packages")
                (:file "parameters")
-               #+(and sbcl (or x86 x86-64))
+               #+(and sbcl (or x86 x86-64 arm))
                (:module "sbcl"
                 :pathname ""
                 :serial t
@@ -22,7 +22,7 @@
                  #-sb-unicode
                  (:file "io-generic-strings")
                  (:file "util-sbcl")))
-               #-(and sbcl (or x86 x86-64))
+               #-(and sbcl (or x86 x86-64 arm))
                (:module "generic"
                 :pathname ""
                 :serial t

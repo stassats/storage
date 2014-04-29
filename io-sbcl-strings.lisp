@@ -175,8 +175,8 @@
                                    (* (length string) 4)))))
       (declare (word start end))
       (loop for address of-type word = start
-              then (truly-the word (+ address sb-vm:n-word-bytes))
+            then (truly-the word (+ address sb-vm:n-word-bytes))
             while (< address end)
             never (logtest (mem-ref-word address)
                            #+x86-64 #xFFFFFF80FFFFFF80
-                           #+x86 #xFFFFFF80)))))
+                           #+(or x86 arm) #xFFFFFF80)))))
