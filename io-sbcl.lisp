@@ -240,6 +240,7 @@
                           :errno errno)))
              (return result))))))
 
+(declaim (inline write-buffer))
 (defun write-buffer (fd buf len)
   (loop for written = (unix-write fd buf len)
         until (= written len)
