@@ -200,16 +200,23 @@
 (declaim (inline unix-read))
 (defun unix-read (fd buf len)
   (declare (type word fd len))
-  (let ((result (sb-alien:alien-funcall
-                 (sb-alien:extern-alien #-win32 "read"
-                                        #+win32 "win32_unix_read"
-                                        (function sb-alien:int
-                                                  sb-alien:int sb-alien:unsigned-long
-                                                  sb-alien:int))
-                 fd buf len)))
-    (if (minusp result)
-        (sb-posix:syscall-error 'read)
-        result)))
+  (block nil
+    (tagbody retry
+       (let ((result (sb-alien:alien-funcall
+                      (sb-alien:extern-alien #-win32 "read"
+                                             #+win32 "win32_unix_read"
+                                             (function sb-alien:int
+                                                       sb-alien:int sb-alien:unsigned-long
+                                                       sb-alien:int))
+                      fd buf len)))
+         (if (= result -1)
+             (let ((errno (sb-alien:get-errno)))
+               (if (= errno sb-posix:eintr)
+                   (go retry)
+                   (error 'sb-posix:syscall-error
+                          :name 'read
+                          :errno errno)))
+             (return result))))))
 
 (declaim (inline unix-write))
 (defun unix-write (fd buf len)
