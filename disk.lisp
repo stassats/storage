@@ -38,6 +38,10 @@
   ;; (collect-stats code)
   (funcall (aref *readers* code) stream))
 
+(declaim (inline get-instance))
+(defun get-instance (id)
+  (aref *indexes* id))
+
 ;;;
 
 (defun slot-effective-definition (class slot-name)
@@ -641,10 +645,6 @@
 (defmethod write-object ((object identifiable) stream)
   (write-n-bytes #.(type-code 'identifiable) 1 stream)
   (write-n-bytes (fast-id object) +id-length+ stream))
-
-(declaim (inline get-instance))
-(defun get-instance (id)
-  (aref *indexes* id))
 
 (defreader identifiable (stream)
   (get-instance (read-n-bytes +id-length+ stream)))

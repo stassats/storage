@@ -307,14 +307,6 @@
            (type (integer 1 4) n))
   (n-signed-mem-ref n (advance-input-stream n stream)))
 
-(declaim (inline write-n-signed-bytes))
-(defun write-n-signed-bytes (value n stream)
-  (declare (optimize speed)
-           (sb-ext:muffle-conditions sb-ext:compiler-note)
-           (fixnum n))
-  (setf (n-signed-mem-ref n (advance-output-stream n stream)) value)
-  t)
-
 (defun flush-output-buffer (stream n &optional count)
   (write-buffer (output-stream-fd stream)
                 (output-stream-buffer-start stream)
@@ -346,6 +338,14 @@
   (declare (optimize (space 0))
            (type (integer 1 4) n))
   (setf (mem-ref-32 (advance-output-stream n stream)) value))
+
+(declaim (inline write-n-signed-bytes))
+(defun write-n-signed-bytes (value n stream)
+  (declare (optimize speed)
+           (sb-ext:muffle-conditions sb-ext:compiler-note)
+           (fixnum n))
+  (setf (n-signed-mem-ref n (advance-output-stream n stream)) value)
+  t)
 
 ;;;
 
