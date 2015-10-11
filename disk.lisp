@@ -347,7 +347,7 @@
   (etypecase string
     ((not simple-string)
      (call-next-method))
-    #+(and sb-unicode (or x86 x86-64 arm))
+    #+(and sb-unicode (or x86 x86-64 arm arm64))
     (simple-base-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
      (write-n-bytes (length string) +sequence-length+ stream)
@@ -614,6 +614,7 @@
                            stream))))
 
 (defun read-storable-class (stream)
+  (declare (optimize speed))
   (let ((class (find-class (read-next-object stream))))
     (unless (class-finalized-p class)
       (finalize-inheritance class))

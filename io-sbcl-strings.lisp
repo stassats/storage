@@ -178,5 +178,5 @@
             then (truly-the word (+ address sb-vm:n-word-bytes))
             while (< address end)
             never (logtest (mem-ref-word address)
-                           #+x86-64 #xFFFFFF80FFFFFF80
-                           #+(or x86 arm) #xFFFFFF80)))))
+                           #+64-bit #xFFFFFF80FFFFFF80
+                           #-64-bit #xFFFFFF80)))))
