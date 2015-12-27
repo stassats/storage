@@ -712,8 +712,9 @@
                                           stream)))))))
 
 (defun db-changed-after-load-p (storage)
-  (> (file-write-date (storage-file storage))
-     (load-time storage)))
+  (and (load-time storage)
+       (> (file-write-date (storage-file storage))
+          (load-time storage))))
 
 (defun load-data (storage &optional file)
   (let* ((*storage* storage)
