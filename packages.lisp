@@ -35,5 +35,6 @@
    #:objects-of-class
    #:load-time
    #:db-changed-after-load-p
-   #:sentinel))
+   #:sentinel
+   #:ascii-string-p))
 
