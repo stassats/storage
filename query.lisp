@@ -75,7 +75,8 @@
     (map-data (lambda (key objects)
                 (when (subtypep key type)
                   (loop for object in objects
-                        when (funcall test object)
+                        when (or (not test)
+                                 (funcall test object))
                         do (push object results)))))
     (if (= (length results) 1)
         (car results)
