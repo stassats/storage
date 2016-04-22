@@ -4,9 +4,8 @@
 (defun fast-allocate-instance (wrapper initforms)
   (declare (simple-vector initforms))
   (let ((instance (sb-pcl::%make-standard-instance
-                   (copy-seq initforms) (sb-pcl::get-instance-hash-code))))
-    (setf (sb-pcl::std-instance-wrapper instance)
-          wrapper)
+                   (copy-seq initforms) 0)))
+    (setf (sb-pcl::std-instance-wrapper instance) wrapper)
     instance))
 
 (defun preallocate-objects (array info)
