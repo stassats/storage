@@ -614,7 +614,6 @@
                            stream))))
 
 (defun read-storable-class (stream)
-  (declare (optimize speed))
   (let ((class (find-class (read-next-object stream))))
     (unless (class-finalized-p class)
       (finalize-inheritance class))
