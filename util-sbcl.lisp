@@ -6,8 +6,7 @@
   (let ((instance (sb-pcl::%make-standard-instance
                    (copy-seq initforms)
                    #-(and compact-instance-header x86-64) 0)))
-    (setf (sb-pcl::std-instance-wrapper instance)
-          wrapper)
+    (setf (sb-kernel:%instance-layout instance) wrapper)
     instance))
 
 (defun preallocate-objects (array info)
