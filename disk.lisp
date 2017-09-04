@@ -728,13 +728,28 @@
           (sentinel storage) (list t))
     t))
 
-(defun save-data (storage &optional file)
-  (let ((*storage* storage))
+(defun save-data (storage &optional (file (storage-file storage)))
+  (let ((*storage* storage)
+        normal-exit
+        backup-file)
     (when (storage-data storage)
-      (with-writing-packages
-        (with-io-file (stream (or file (storage-file storage))
-                       :direction :output)
-          (dump-data stream)))
+      (when (probe-file file)
+        (setf backup-file
+              (rename-file file
+                           (make-pathname :name (format nil ".~a" (pathname-name file))
+                                          :defaults file))))
+      (unwind-protect
+           (progn
+             (with-writing-packages
+               (with-io-file (stream file
+                              :direction :output)
+                 (dump-data stream)))
+             (setf normal-exit t))
+        (cond ((not backup-file))
+              (normal-exit
+               (delete-file backup-file))
+              (t
+               (rename-file backup-file file))))
       (setf (modified storage) nil
             (load-time storage) (get-universal-time))
       t)))
