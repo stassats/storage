@@ -5,7 +5,7 @@
   (declare (simple-vector initforms))
   (let ((instance (sb-pcl::%make-standard-instance
                    (copy-seq initforms)
-                   #-(and compact-instance-header x86-64) 0)))
+                   #-(and (or linux bsd) x86-64) 0)))
     (setf (sb-kernel:%instance-layout instance) wrapper)
     instance))
 

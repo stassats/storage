@@ -62,7 +62,7 @@
 
 ;;; reading
 
-(declaim (ftype (function * (values * &optional))
+(declaim (ftype (function * (values t &optional))
                  read-string-boundary))
 (defun read-string-boundary (length string stream
                              buffer-char-size memory-char-size)

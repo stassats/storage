@@ -12,7 +12,7 @@
 
 (deftype word () 'sb-vm:word)
 
-(declaim (ftype (function * (values * &optional))
+(declaim (ftype (function * (values t &optional))
                 fill-input-buffer refill-input-buffer
                 flush-output-buffer))
 
