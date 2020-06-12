@@ -3,10 +3,9 @@
 (declaim (inline fast-allocate-instance))
 (defun fast-allocate-instance (wrapper initforms)
   (declare (simple-vector initforms))
-  (let ((instance (sb-pcl::%make-standard-instance
-                   (copy-seq initforms)
-                   #-(and (or linux bsd) x86-64) 0)))
-    (setf (sb-kernel:%instance-layout instance) wrapper)
+  (let ((instance (sb-kernel:%make-instance (1+ sb-vm:instance-data-start))))
+    (setf (sb-pcl::std-instance-slots instance) (copy-seq initforms)
+          (sb-kernel:%instance-layout instance) wrapper)
     instance))
 
 (defun preallocate-objects (array info)
