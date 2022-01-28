@@ -70,7 +70,7 @@
 
 ;;;
 
-(defun lookup (type &optional test)
+(defun lookup (type &optional test list)
   (let (results)
     (map-data (lambda (key objects)
                 (when (subtypep key type)
@@ -78,7 +78,8 @@
                         when (or (not test)
                                  (funcall test object))
                         do (push object results)))))
-    (if (= (length results) 1)
+    (if (and (not list)
+             (= (length results) 1))
         (car results)
         results)))
 
