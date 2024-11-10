@@ -36,5 +36,6 @@
    #:load-time
    #:db-changed-after-load-p
    #:sentinel
-   #:ascii-string-p))
+   #:ascii-string-p
+   #:sum))
 

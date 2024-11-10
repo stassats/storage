@@ -92,3 +92,13 @@
                             (length objects)
                             (count-if test objects))))))
     count))
+
+(defun sum (type key &optional test)
+  (let ((sum 0))
+    (map-data (lambda (object-type objects)
+                (when (subtypep object-type type)
+                  (loop for object in objects
+                        when (or (not test)
+                                 (funcall test object))
+                        do (incf sum (funcall key object))))))
+    sum))

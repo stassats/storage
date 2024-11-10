@@ -628,7 +628,7 @@
             for slot-d = (or (slot-effective-definition class slot-name)
                              (cerror "Skip this slot"
                                      "No slot named ~a in ~a"
-                                     class slot-name))
+                                     slot-name class))
             for location = (and slot-d (slot-definition-location slot-d))
             for initiform = (and slot-d (slot-definition-initform slot-d))
             for old-value = (aref vector i)
